@@ -56,10 +56,9 @@ How far to trust a number:
   Brightness 12-60, read as a burst *(verified)*. It still read as a splash
   rather than an eruption: size and brightness are not the whole fix.
 - **Borrow the rhythm and silhouette of a reference, not its colour.** The
-  studied fan pieces read clearly as Gojo's Reversal Red, a Kamehameha, a
-  Katon fire dragon, a Gate of Babylon volley and Ayato's sword kit:
-  - each keeps its move's beats, shape and scale;
-  - colour may change (the Ayato piece is amber, not Hydro blue).
+  studied fan pieces (Gojo's Reversal Red, a Kamehameha, Ayato's sword kit)
+  keep their move's beats, shape and scale, and may change colour: the Ayato
+  piece is amber, not Hydro blue.
 - **Decide the dominant shape.** In the tutorial's example the defining
   choice is flat: a wide spiral on the ground, which reads instantly as an
   area attack. A vertical column reads as a pillar; a forward cone reads as a
@@ -244,9 +243,8 @@ How one orange shape renders under a new place's lighting *(verified)*:
   studied saturated layers are solid (`LightEmission` 0.3 or less); additive
   is for thin highlights and small glows. A mostly additive magic run came
   back 74-85% pale, studied videos 2-21% *(measured)*.
-- **Glow-first is a different style.** One studied artist ran `LightEmission`
-  1 on more than half the layers, with fractional values as a mixing dial and
-  colour-correction frames on top. It works in a dark scene.
+- **Glow-first** (`LightEmission` 1 on most layers, one studied artist's
+  style) works in a dark scene.
 - **The white-hot core:** one or two front layers at Brightness 50-150, with a
   shape (spikes, a star or a ring), lasting 0.03-0.1 s.
 - **Neon mesh flashes** run hotter: Brightness 78 falling to 27 by 7% of
@@ -263,7 +261,8 @@ How one orange shape renders under a new place's lighting *(verified)*:
   - one hit in the studied slashes has 40-60 distinct layers;
   - a small orb is 17 layers on one attachment;
   - the median `EmitCount` is 1, and 37% of emitters have Speed near 0:
-    sprites stacked and timed in place.
+    sprites stacked and timed in place;
+  - 20 of 48 files add glowing meshes too (`vfx-mesh-shapes.md`).
 - **Big counts are for scatter:** sparks, droplets, debris and dots at 10-160
   a burst. Sustained beams and trails use `Rate` 15-2000.
 
@@ -395,7 +394,11 @@ Typical lifetimes *(measured)*:
 - **Size pops.** `0:0, 0.1:peak, 1:0` for debris. A flash starts big and
   shrinks. Rings grow on an ease-out. A one-frame `Squash` pop at spawn (2 to
   0 by 2% of life) gives an orb a snap.
-- **Spread from one key.** A size of `m ± m` gives sizes from 0 to 2m.
+- **Each particle its own size.** 51% of studied emitters, in 37 of 39
+  files, give their Size keys an `envelope`, a random ± per particle, a
+  median third of the peak *(measured)*. `{ "time": 0.1, "value": 6,
+  "envelope": 2 }` spreads 4-8, and `m ± m` 0 to 2m. Without one, a layer's
+  particles match in size at every age, which looks machine-made.
 - **Hold, then snap.**
   - Transparency held at 0 for the first 27-30% of life, then snapping to 0.8
     by about 36%.

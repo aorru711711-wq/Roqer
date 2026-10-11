@@ -88,8 +88,12 @@ const isNumberList = (value: unknown, size: number): value is number[] =>
   Array.isArray(value) && value.length === size && value.every(isNumber);
 const isColor = (value: unknown): boolean => isNumberList(value, 3) && value.every((component) => component >= 0 && component <= 1);
 
-/** Keypoints the way the plugin reads them, and as Roblox requires: from time 0 to 1, in order. */
-function keypointProblem(value: unknown, isValue: (entry: unknown) => boolean): string | undefined {
+/**
+ * Keypoints the way the plugin reads them, and as Roblox requires: from time 0
+ * to 1, in order. Only a NumberSequence keypoint carries an envelope, the
+ * random spread each particle draws.
+ */
+function keypointProblem(value: unknown, isValue: (entry: unknown) => boolean, takesEnvelope = false): string | undefined {
   if (!Array.isArray(value) || value.length < 2) return "needs at least two keypoints";
   const times = value.map((entry) => (entry as { time?: unknown }).time);
   if (!times.every(isNumber)) return "every keypoint needs a numeric time";
@@ -98,6 +102,9 @@ function keypointProblem(value: unknown, isValue: (entry: unknown) => boolean): 
     if ((times[index] as number) < (times[index - 1] as number)) return "keypoint times must ascend";
   }
   if (!value.every((entry) => isValue((entry as { value?: unknown }).value))) return "a keypoint value has the wrong shape";
+  const envelopes = value.map((entry) => (entry as { envelope?: unknown }).envelope).filter((envelope) => envelope !== undefined);
+  if (envelopes.length > 0 && !takesEnvelope) return "only a NumberSequence keypoint takes an envelope";
+  if (!envelopes.every((envelope) => isNumber(envelope) && envelope >= 0)) return "an envelope is a number of 0 or more";
   return undefined;
 }
 
@@ -114,7 +121,7 @@ function valueProblem(kind: Kind, value: unknown): string | undefined {
       if (isNumber(value)) return undefined;
       return isNumberList(value, 2) && value[0] <= value[1] ? undefined : "is not a number or [min, max]";
     case "NumberSequence":
-      return isNumber(value) ? undefined : keypointProblem(value, isNumber);
+      return isNumber(value) ? undefined : keypointProblem(value, isNumber, true);
     case "ColorSequence":
       return isColor(value) ? undefined : keypointProblem(value, isColor);
     default: return undefined;

@@ -12,7 +12,8 @@ import {
 import { articulationOf, describeArticulation, MAX_LISTED_OBJECTS, parseObjects, type Articulation, type InspectedObject } from "./blender-articulation";
 import { ANIMATION_SUFFIX, BAKE_SUFFIX, describeBake, describeBakedFile, parseBake } from "./blender-animation";
 import { describeSkins, parseSkins, type InspectedSkin } from "./blender-skin";
-import { analyzeFlipbook, describeFlipbook, type FlipbookClaim, type FlipbookReport } from "./flipbook-sheet";
+import { analyzeFlipbook, decodePng, describeFlipbook, type FlipbookClaim, type FlipbookReport } from "./flipbook-sheet";
+import { analyzeRing, describeRing } from "./texture-ring";
 import type { McpCallOptions, McpToolImage, McpToolOutcome } from "./mcp-types";
 import { findStudioContentDirectories, stageStudioPreviews, type StudioPreview } from "./studio-preview";
 import { isViewableGlb, JOB_RETENTION_MS, MAX_KEPT_JOBS, modelPreviewFileName, pruneJobFolders } from "./model-preview";
@@ -1904,6 +1905,8 @@ export type RenderedImage = Readonly<{
   bytes: number;
   width?: number;
   height?: number;
+  /** What Roqer noticed in its pixels, such as a ring drawn even all round. */
+  notes?: readonly string[];
   error?: string;
 }>;
 
@@ -2146,7 +2149,8 @@ export class BlenderWorker {
         rendered.push({ name, path: filePath, bytes: bytes?.length ?? 0, error: "Not a readable PNG." });
         continue;
       }
-      rendered.push({ name, path: filePath, bytes: bytes.length, width: header.width, height: header.height });
+      const notes = ringNotes(bytes);
+      rendered.push({ name, path: filePath, bytes: bytes.length, width: header.width, height: header.height, ...(notes.length > 0 ? { notes } : {}) });
       readable.push(bytes);
     }
     // A few renders are attached one by one; more go as one review sheet, so
@@ -2838,6 +2842,16 @@ function describeScene(
   return lines;
 }
 
+/** A note when a drawn texture is a ring even all round; nothing when it varies, is not a ring, or does not decode. */
+function ringNotes(bytes: Buffer): string[] {
+  try {
+    const report = analyzeRing(decodePng(bytes));
+    return report === undefined ? [] : describeRing(report);
+  } catch {
+    return [];
+  }
+}
+
 function describeImage(image: RenderedImage): string {
   const kilobytes = `${Math.max(1, Math.round(image.bytes / 1024))} KB`;
   if (image.error !== undefined || image.width === undefined || image.height === undefined) {
@@ -2847,5 +2861,6 @@ function describeImage(image: RenderedImage): string {
     ...(Math.max(image.width, image.height) > MAX_UPLOAD_IMAGE_SIDE ? [`Roblox keeps at most ${MAX_UPLOAD_IMAGE_SIDE} pixels a side, so render it smaller`] : []),
     ...(image.bytes > MAX_PREVIEW_BYTES ? ["too large to attach"] : []),
   ];
-  return `- ${image.path} (${kilobytes}): ${image.width} × ${image.height} pixels${notes.length > 0 ? `; ${notes.join("; ")}` : ""}`;
+  const seen = (image.notes ?? []).map((note) => `\n  Note: ${note}`).join("");
+  return `- ${image.path} (${kilobytes}): ${image.width} × ${image.height} pixels${notes.length > 0 ? `; ${notes.join("; ")}` : ""}${seen}`;
 }

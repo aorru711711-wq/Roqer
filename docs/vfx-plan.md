@@ -1677,6 +1677,89 @@ artists' work, "crisp and high quality", without being able to say why.
 - **Left:** a texture check for clip-art symmetry. Sigils and rings are
   rightly symmetric, so a plain symmetry test would flag them too.
 
+## Seventh study: why it still looked lower quality
+
+After the colour check the user still found the effects lower quality than
+the artists', beyond colour. This study compared what the agent makes with
+the studied files directly, property by property and pixel by pixel.
+
+### Method
+
+- The 1,427 dump textures were scaled to 256 pixels and measured from their
+  pixels; 230 originals were fetched at full size from the asset service.
+- A ring is a texture whose drawn pixels (alpha times value at least 0.15)
+  lie mostly in one band about the centre, around at least half of it. For
+  each of 72 angles round it: the brightest pixel and the band's width.
+- Line textures were thinned to their centre line, and the brightness along
+  it read.
+- The 5,010 studied emitters were re-read for per-particle variation
+  (`NumberSequence` envelopes) and the 48 files for meshes.
+- Each was compared with the magic-missile run's textures and Roqer's own
+  recipes.
+
+### Findings
+
+| | Studied artists | The run or the guidance |
+| --- | --- | --- |
+| Rings that vary round the circle | 84% of 159 | 0 of 2 |
+| Ring brightness spread, width spread | median 32%, 51% | 1-7%, 18-22% |
+| Share of a ring at full brightness | median 8% | 88-100% |
+| Share of a stroke near full brightness | median 13% of 752 (40% faint) | 48-82% (spikes, ring, sigil) |
+| Drawn pixels near full: soft, crisp, mixed | 1%, 19%, 29% of 1,393 | |
+| Flipbooks and single images at 1024 px | 93% of 89, 42% of 122 | single images capped at 512 |
+| Emitters with a Size envelope | 51% of 5,010, in 37 of 39 files | no recipe |
+| Files with glowing meshes | 20 of 48 (29 with any mesh) | not on the missile route |
+
+- **The guidance was wrong about rings.** It said soft shock rings are even,
+  and symbols have even line weight; both came from a community kit, not
+  the studied effects. The artists' rings are a bright, thick arc that thins
+  and fades round the rest, brush strokes with breaks, or radial streaks,
+  with the variation smooth rather than lumpy.
+- **Value inside a texture.** Soft light is a small hot core; a stroke is
+  bright at an accent and fades along the rest. The run's shapes were bright
+  along their whole length.
+- **Every particle of a layer was the same size.** Half the studied emitters
+  draw each particle's size from a range a median third of the peak.
+- **Resolution.** The size rule capped single textures at 512, under the
+  1024 most artists upload for what is large or crisp.
+- **Not the cause:**
+  - Symmetry and taper: 44% of the artists' crisp single textures are
+    strongly symmetric, so a symmetry measure does not tell theirs from ours.
+  - Detail: the run's textures carry as much small detail.
+  - Easing: the size and transparency curves ease alike; the median studied
+    size curve has 3 keys.
+
+### What changed
+
+- **`runtime/texture-ring.ts`:** finds a ring from a texture's pixels and
+  notes one that is even all round, with the studied numbers and what to
+  change. The Blender worker attaches the note to each drawn image it
+  reports.
+  - Run over the 1,427 dump textures it finds the same 159 rings as the
+    study's script and notes 16% of them.
+  - It notes the run's ring and rune band; the sigil is not a ring.
+- **`vfx-textures.md`:**
+  - Rings are round, not even, with the measured numbers and a ring example
+    (drawn with the real helpers: brightness spread 38%, width 55%).
+  - A brightness bullet with the family numbers, and a value question in the
+    review checklist; the symmetry question no longer exempts a ring's
+    value and width.
+  - Large or crisp textures at 1024, and the crisp examples drawn at 1024.
+  - The section that repeated "What textures look like", and the two upload
+    instructions, are merged, so the explosion route's second call shrank
+    (47,775 of 48,000 characters, from 47,956).
+- **`vfx-design.md`:** each particle its own size, with the `envelope`
+  format; the glowing-mesh share. Two bullets are shorter to keep the core
+  pair in one call (47,962).
+- **`vfx-craft.md`:** the streaks example carries an envelope, and the
+  recipe test checks that envelopes are numbers of 0 or more on
+  `NumberSequence` keys only.
+- **`SKILL.md`:** the mesh topic names the glowing-mesh share.
+- **Left:**
+  - No new run has been made to see whether the effects now look better.
+  - Strokes are not checked from their pixels, only rings; a flipbook's
+    cells are not checked for rings.
+
 ## Deferred, and why
 
 - **Runtime EditableMesh/EditableImage effects** (UV scrolling on meshes,

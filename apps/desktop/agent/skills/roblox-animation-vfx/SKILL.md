@@ -34,7 +34,7 @@ Load when implementing character animation, particle or beam effects, tweens, ca
   - `references/vfx-textures.md`: drawing the effect's own textures and flipbooks in Blender (hard-edged drawn shapes, and soft light such as flares and glows), previewing them in Studio and uploading them. Most effects should.
   - `references/vfx-explosions.md`: any explosion, fireball, blast, burning or smoke. It covers the fire body as a mass of flipbooks (never one image scaling), how fire turns to smoke, smoke's value, lighting and opacity, and drawn fire-burst and burn-out sheets.
   - `references/vfx-motion.md`: anything that travels, sweeps or is held: projectiles, volleys, trails, beams, slashes, dashes, teleports, orbs, sigils and auras.
-  - `references/vfx-mesh-shapes.md`: mesh effects (crescent meshes, shockwave rings, swirls, domes, ground waves) and making their shapes in Blender.
+  - `references/vfx-mesh-shapes.md`: mesh effects (crescent meshes, shockwave rings, swirls, domes, ground waves) and making their shapes in Blender. 20 of 48 studied files add glowing meshes beside their particles.
   - `references/vfx-camera-world.md`: camera shake, field of view, blur and impact frames, lights, craters and scorch marks, and a cast pose: the caster's arm or hand raised toward a target from code, for any skill cast from a character's hand.
   - `references/vfx-rendered-flipbooks.md`: a flipbook rendered from a 3D scene rather than drawn.
   - `references/vfx-reference.md`: matching a reference clip the user attached (a video or animated picture): reading its frames and measurements, looking closer with `reference_clip`, and comparing with `capture_moments`.

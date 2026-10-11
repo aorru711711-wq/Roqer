@@ -301,7 +301,7 @@ Streaks that shoot out and stop:
     "SpreadAngle": [180, 180], "Drag": 10, "Orientation": "VelocityParallel",
     "LightEmission": 0, "LightInfluence": 0, "Brightness": 8, "ZOffset": 2,
     "Color": [{ "time": 0, "value": [1, 0.9, 0.6] }, { "time": 1, "value": [1, 0.3, 0.05] }],
-    "Size": [{ "time": 0, "value": 1.2 }, { "time": 1, "value": 0 }],
+    "Size": [{ "time": 0, "value": 1.2, "envelope": 0.5 }, { "time": 1, "value": 0 }],
     "Squash": [{ "time": 0, "value": 3 }, { "time": 1, "value": 1 }],
     "Transparency": 0
   },

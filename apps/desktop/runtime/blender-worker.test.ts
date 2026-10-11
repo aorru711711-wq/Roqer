@@ -257,6 +257,32 @@ test("a job that renders an image for UI returns it, measured from the file and 
   });
 });
 
+test("a ring drawn even all round is noted from its pixels; one that varies is not", async () => {
+  // White rings on transparency, 128 pixels: one band of one width at full brightness, and one whose arc thins and fades.
+  const ring = (vary: boolean) => png(128, 128, (x, y) => {
+    const angle = Math.atan2(y - 63.5, x - 63.5);
+    const weight = vary ? 0.5 + 0.5 * Math.cos(angle) : 1;
+    const inside = Math.abs(Math.hypot(x - 63.5, y - 63.5) / 64 - 0.7) <= (vary ? 0.015 + 0.035 * weight : 0.03);
+    return [255, 255, 255, inside ? Math.round(255 * (vary ? 0.3 + 0.7 * weight : 1)) : 0];
+  }, { alpha: true });
+  await withJobs(async (jobsRoot) => {
+    const blender = fakeBlender(async (args) => {
+      const output = path.join(argAfterDashes(args), "output");
+      await fs.writeFile(path.join(output, "EvenRing.png"), ring(false));
+      await fs.writeFile(path.join(output, "ArcRing.png"), ring(true));
+      return { output: "ROQER_SCRIPT_DONE\n" };
+    });
+    const worker = new BlenderWorker({ executable: EXECUTABLE, jobsRoot, spawn: blender.spawn, killTree: blender.killTree, env: {} });
+    const outcome = await worker.run({ script: "import bpy\n# draws two rings" });
+    assert.equal(outcome.ok, true, outcome.text);
+    assert.match(outcome.text, /EvenRing\.png \(\d+ KB\): 128 × 128 pixels\n {2}Note: This ring is even all round: its brightness spreads \d+% and its width \d+% around the circle, with 100% of it at full brightness\./);
+    assert.doesNotMatch(outcome.text, /ArcRing\.png \(\d+ KB\): 128 × 128 pixels\n {2}Note/);
+    const data = outcome.data as { images: Array<{ name: string; notes?: string[] }> };
+    assert.equal(data.images.find((image) => image.name === "EvenRing.png")?.notes?.length, 1);
+    assert.equal(data.images.find((image) => image.name === "ArcRing.png")?.notes, undefined);
+  });
+});
+
 test("a flipbook sheet is checked from its pixels, apart from ordinary renders, with its note read only as a claim", async () => {
   await withJobs(async (jobsRoot) => {
     const burst = sheet(8, (i) => (i >= 62 ? 0 : 6 + Math.min(i, 61 - i)));

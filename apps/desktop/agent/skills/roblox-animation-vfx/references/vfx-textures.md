@@ -32,6 +32,13 @@ texture, stop and report what is failing instead of escalating.
     or line, and the shape keeps the symmetry of light (below). Of the
     `LightEmission` 1 emitters, 83% use a texture that falls off softly; so
     do 77% of emitters that use a single image rather than a sheet.
+- **Little of a texture is at full brightness** *(measured: 1,393
+  textures)*: a median 1% of the drawn pixels in soft light (a small hot
+  core), 19% in crisp drawn matter and 29% in textures that mix the two. In
+  752 line textures a median 13% of a stroke is near full and 40% faint:
+  bright at an accent, fading along the rest. A run drew its spikes, ring
+  and sigil 48-82% at full and looked cheap *(seen in a run)*. `Brightness`
+  makes a texture bright; the value inside it reads as craft.
 - **Smoke is where the styles part.** Of the 1,108-texture community kit's
   113 smoke, fog and cloud textures, 73 are soft-edged billows with light and
   dark mottling inside, 29 put a crisp silhouette around a soft, mottled
@@ -100,17 +107,22 @@ texture, stop and report what is failing instead of escalating.
     emitters)*: in 16 of the 19, four straight arms of the same length
     (within 4%). Each arm thins and fades toward its tip from one smooth hot
     core, often with a faint halo. 16 fall off softly; 2 are a crisp star
-    with smooth concave sides. None has bent arms or a lumpy core. Of the
-    other three, one is a tiny glint, one a horizontal lens streak, and one
-    has a longer lower arm.
+    with smooth concave sides. None has bent arms or a lumpy core.
   - **The texture stays symmetric; the emitter stretches it.** 41% of those
     emitters squash the flare, twice the rate of other soft textures, and
     most rotate it as they do any layer. They live about 0.35 s, shorter
     than the 0.5 s of most layers, at `LightEmission` 1 and Brightness 5-12
     for the most part.
   - **Glows and dots** are round. **Lens streaks** are a thin horizontal line
-    through a hot centre. **Soft shock rings** are even. **Ray bursts** are
-    straight rays of uneven length from one hot centre.
+    through a hot centre. **Ray bursts** are straight rays of uneven length
+    from one hot centre.
+  - **Rings are round, not even** *(measured: 159 ring textures)*. 84% vary
+    round the circle: a bright, thick arc that thins and fades round the
+    rest, brush strokes with breaks, or radial streaks. Brightness spreads a
+    median 32% round a ring and width 51%, and about 8% of it is at full
+    brightness. Vary both smoothly with the angle, not in lumps. A band of
+    one width at full brightness all round reads as clip art *(seen in a
+    run)*; Roqer's texture report names one.
   - Made lopsided, lumpy or hard-cut, light reads as a broken drawing: a
     flare drawn as four bent strokes around a lumpy blob, with a glow pasted
     underneath, looked wrong to the user *(seen in a run)*.
@@ -124,7 +136,8 @@ texture, stop and report what is failing instead of escalating.
     triangle or a compass star;
   - a rune band of many small glyphs packed into a thin ring, which reads
     as script. A dozen large glyphs read as letters instead.
-  Make the effect around a sigil lopsided, not the sigil.
+  Make the effect around a sigil lopsided, not the sigil. Its light follows
+  the brightness rule above.
 
 Draw them with `roqer.draw_flipbook` (below).
 
@@ -149,17 +162,20 @@ sheet instead, for a lit volume or simulation (`vfx-rendered-flipbooks.md`).
   - A redraw comes from a new job, with new addresses: Studio keeps a file's
     first image for the session.
   - The addresses work on this computer only; players see nothing there.
-- **Upload:** send the whole settled set in one `upload_assets` call, each
-  file as a `Decal`, and use each result's `imageId` as
-  `rbxassetid://<imageId>`.
+- **Upload:** send the whole settled set in one
+  `upload_assets {uploads: [{filePath, assetType: 'Decal', displayName}, ...]}`
+  call, and use each result's `imageId` as `rbxassetid://<imageId>`.
   - Every upload is irreversible and moderated, so upload only the settled
     set, and say how many uploads a request will use before uploading.
   - Then replace every preview address left in the place (see "To use a
     sheet" below).
   - Reuse one texture across layers by changing `Color`, `Size`, `Rotation`
     and `Squash`.
-- **Size:** keep a single texture square, 512 px or less, and 256 px for
-  small ones; memory scales with pixels. A flipbook sheet is 1024 x 1024.
+- **Size:** square. Of the studied originals, 93% of 89 flipbooks and 42%
+  of 122 single images are 1024 px; a crisp edge drawn small blurs when the
+  particle fills the screen. Draw a large or crisp texture with
+  `size=1024`; a soft glow or a dot can be 256-512, as memory scales with
+  pixels. A flipbook sheet is 1024 x 1024.
 - **White on transparency** suits almost everything: the particle's `Color`
   tints it, and `LightEmission` picks the blending (`vfx-design.md`, section 4). Bake onto black
   (`mode="additive"`) only for a layer that will only ever be additive.
@@ -169,16 +185,14 @@ sheet instead, for a lit volume or simulation (`vfx-rendered-flipbooks.md`).
 **Flipbook rules:**
 
 - `FlipbookLayout` is `Grid2x2`, `Grid4x4` or `Grid8x8` (4, 16 or 64 frames).
-  4 x 4 is the usual choice. `Custom` with `FlipbookSizeX/Y` was in client
-  beta from October 2025. 368 studied emitters (7%) use it (4x2, 3x4, 3x2
-  and others), so it has probably shipped. Check that one plays in Studio
-  before relying on it.
+  4 x 4 is the usual choice. `Custom` (`FlipbookSizeX/Y`, in client beta
+  from October 2025) is on 7% of studied emitters; check that one plays in
+  Studio before relying on it.
 - Make the sheet 1024×1024, the size uploaded and seen playing frame by frame.
   That is 512 px a frame at 2×2, 256 at 4×4 and 128 at 8×8.
-- Do not judge a sheet by `FlipbookIncompatible`. Studio shows "Particle
-  texture must be 1024 by 1024 to use flipbooks." there even for a 1024 sheet
-  that plays, and for a texture with no flipbook layout at all. Every studied
-  emitter carries the message.
+- Do not judge a sheet by `FlipbookIncompatible`: Studio shows its "must be
+  1024 by 1024" message on every studied emitter, even a 1024 sheet that
+  plays.
 - To check a sheet, hold one particle at a few ages (`TimeScale = 0`) and
   screenshot it. Each capture should show one frame, not the whole grid.
 - Leave a few pixels of empty space inside each cell. A frame that touches its
@@ -199,35 +213,12 @@ sheet instead, for a lit volume or simulation (`vfx-rendered-flipbooks.md`).
 
 ## Particle textures and flipbooks
 
-A particle texture decides most of how an effect looks. Most textures by
-experienced Roblox VFX artists are 2D images, not renders, white on
-transparency so the particle's `Color` tints them. They come in two families
-(see "What textures look like" above): drawn matter, a hard-edged silhouette
-cel-shaded in two or three flat tones, and light, a soft falloff from a hot
-core.
-
-- **Shapes:** flame tongues, spiky impact stars, crisp smoke puffs with a lit
-  and a shadow side, crescents and claws, wobbly rings, wisps, zig-zags,
-  splinters and shaded rocks are drawn matter. Four-point flares, glows,
-  halos, lens streaks, soft shock rings and dots are light.
-- **Edges:** drawn matter is crisp: alpha is binary with a 1-2 px
-  anti-aliased rim, or posterised to about 16 steps. Light falls off softly
-  and is not cut.
-- **Detail:** from negative space (holes, notches, overhangs, scribbled
-  interior strokes) and tapering stroke widths, not from shading. Silhouettes
-  are asymmetric. Three exceptions:
-  - a flash keeps a solid centre;
-  - light keeps its symmetry: a four-point flare mirrors on both axes with
-    equal arms, and a glow is round;
-  - a symbol (a sigil, magic circle or rune band) is precise and symmetric.
-- **Trails and beams** take a texture too, drawn as a vertical strip: the
-  image's top is a Trail's head and its left edge `Attachment0` (see
-  `vfx-motion.md`).
-- **Frames and size in the cell:** see "What textures look like" above.
-- **Glows:** soft round glows are one layer among many, not the effect.
-
-A soft, grey, rendered smoke ball with no silhouette, whose frames barely
-change, is the look to avoid. It reads as a smudge at game distance.
+A particle texture decides most of how an effect looks. Most are drawn 2D
+images, not renders; "What textures look like" above gives their families,
+shapes, edges and detail. Soft round glows are one layer among many, not the
+effect. **Trails and beams** take a texture too, drawn as a vertical strip:
+the image's top is a Trail's head and its left edge `Attachment0` (see
+`vfx-motion.md`).
 
 There are two ways to make one: drawing with numpy (below), or rendering a 3D
 scene (`vfx-rendered-flipbooks.md`). Both write a sheet that Roqer checks the
@@ -390,7 +381,7 @@ def cracks(size):
         field = numpy.maximum(field, roqer.tex_stroke(x, y, numpy.stack([fork, kink, tip]), [root * 0.5, 0.0]))
     return roqer.tex_edge(field, soft=0.004)
 
-roqer.draw_texture("GroundCracks", cracks, size=512)
+roqer.draw_texture("GroundCracks", cracks, size=1024)
 ```
 
 It runs in seconds. Draw at the final size: a sheet is 1024 x 1024, so a 4 x 4
@@ -455,17 +446,22 @@ def star(size):
     return roqer.tex_edge(0.9 - (numpy.abs(x) ** p + numpy.abs(y) ** p) ** (1 / p), soft=0.006)
 
 roqer.draw_texture("Glint", glint, size=512)
-roqer.draw_texture("CrispStar", star, size=512)
+roqer.draw_texture("CrispStar", star, size=1024)
 ```
 
 A round glow is `numpy.exp(-(r / radius) ** 2)`. A lens streak is the
-glint's horizontal arm alone, long and thin.
+glint's horizontal arm alone, long and thin. A shock ring varies round the
+circle: with `r, a = roqer.tex_polar(x, y)` and `w = 0.5 + 0.5 * numpy.cos(a)`,
+`numpy.exp(-((r - 0.75) / (0.015 + 0.05 * w)) ** 2) * (0.3 + 0.7 * w)` is a
+bright, thick arc that thins and fades round the rest.
 
 Look at the attached sheet and ask whether it looks drawn, or, for light,
 whether it looks like light:
 - **Symmetry:** is anything radially or mirror symmetric, evenly spaced, or
-  of uniform line width? Break it up, unless it is a symbol (a sigil, magic
-  circle or rune band is drawn precise and symmetric) or light.
+  of uniform line width? Break it up, unless it is a symbol's geometry or
+  light's shape (a ring's value and width still vary round it).
+- **Value:** how much is at full brightness? Light is a small hot core; a
+  stroke is bright at an accent and faint along the rest.
 - **Light:** is a flare one smooth hot core with straight arms of equal
   length that fade toward their tips, and a glow round? Bent or unequal arms,
   a lumpy core, or a hard cut with a glow underneath read as a broken
@@ -508,15 +504,12 @@ To use a sheet:
 1. **While it changes:** iterate on previews (`preview_in_studio: true`,
    above), pointing the emitters at each new job's addresses. Judge each
    version in the effect, at game distance, before drawing the next.
-2. **Once it is settled:** upload it with every other settled texture in one
-   `upload_assets {uploads: [{filePath, assetType: 'Decal', displayName}, ...]}`
-   call (a single file can also go with `upload_asset`), and set
-   `ParticleEmitter.Texture` to `rbxassetid://<imageId>`.
+2. **Once it is settled:** upload it with every other settled texture
+   (above) and set `ParticleEmitter.Texture` to `rbxassetid://<imageId>`.
    - Replace every `rbxasset://textures/roqer-preview/` address left in the
      place before calling the work done.
-   - To find any that remain, scan with `execute_luau`: walk
-     `game:GetDescendants()` and report each ParticleEmitter, Beam, Trail,
-     Decal or Texture whose `Texture` starts with that prefix.
+   - To find any left, walk `game:GetDescendants()` with `execute_luau` for
+     a `Texture` that starts with that prefix.
 3. **Apply the settings Roqer listed.**
 4. **Confirm it plays** as the flipbook rules above say: one frame per
    capture, not the whole grid.
