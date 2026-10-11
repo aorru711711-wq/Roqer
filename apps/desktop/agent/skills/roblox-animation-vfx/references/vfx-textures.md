@@ -35,12 +35,14 @@ texture, stop and report what is failing instead of escalating.
 - **Smoke is where the styles part.** Of the 1,108-texture community kit's
   113 smoke, fog and cloud textures, 73 are soft-edged billows with light and
   dark mottling inside, 29 put a crisp silhouette around a soft, mottled
-  inside, and 11 are flat cel puffs *(measured)*. Cel puffs are the clean
-  toon look. A brief that asks for weight or grit, or says "not cartoonish",
-  wants the mottled kind (the examples below have both). A ground slam asked to
-  be "heavy and brutal, not cartoonish" got two-tone cel dust that read as
-  cotton balls *(seen in a run)*. Soft is not the failure; no silhouette and
-  no contrast inside is.
+  inside, and 11 are flat cel puffs *(measured)*. In the studied effects, 72%
+  of smoke layers use a soft or mottled texture, and even the cel puffs play
+  about half transparent *(measured)*. Cel puffs are the clean toon look, for
+  a game that is clearly toon. A brief that asks for weight or grit, or says
+  "not cartoonish", wants the mottled kind (the examples below have both). A
+  ground slam asked to be "heavy and brutal, not cartoonish" got two-tone cel
+  dust that read as cotton balls *(seen in a run)*. Soft is not the failure;
+  no silhouette and no contrast inside is.
 - **Detail from negative space, not shading.** Holes, notches, overhangs and
   scribbled interior strokes. Stroke width tapers as with pen pressure.
   Drawn silhouettes are asymmetric. When there is shading, it is one or two
@@ -152,7 +154,9 @@ sheet instead, for a lit volume or simulation (`vfx-rendered-flipbooks.md`).
 
 - `FlipbookLayout` is `Grid2x2`, `Grid4x4` or `Grid8x8` (4, 16 or 64 frames).
   4 x 4 is the usual choice. `Custom` with `FlipbookSizeX/Y` was in client
-  beta from October 2025; do not rely on it until confirmed.
+  beta from October 2025. 368 studied emitters (7%) use it (4x2, 3x4, 3x2
+  and others), so it has probably shipped. Check that one plays in Studio
+  before relying on it.
 - Make the sheet 1024×1024, the size uploaded and seen playing frame by frame.
   That is 512 px a frame at 2×2, 256 at 4×4 and 128 at 8×8.
 - Do not judge a sheet by `FlipbookIncompatible`. Studio shows "Particle
@@ -170,6 +174,10 @@ sheet instead, for a lit volume or simulation (`vfx-rendered-flipbooks.md`).
   - `PingPong` plays forward and back;
   - `Random` shows one random frame.
   - Use `Loop` with `FlipbookStartRandom = true` for a burning fire.
+  - For variety, draw 4 or 16 variants (rocks, debris, splashes) on one sheet
+    and set `FlipbookStartRandom = true` with `Loop` at `FlipbookFramerate` 0,
+    so each particle keeps a different one. 20 studied layers do this, mostly
+    2 x 2 rock sheets *(measured)*.
 - Some low-memory devices switch flipbooks off, so the first frame should
   still read on its own.
 
@@ -273,7 +281,8 @@ The pattern behind drawn matter:
      `tex_edge(noise - t * 1.1)`, or erase a stroke from its head by raising
      `start`.
 
-Five examples, each run in Blender 5.2:
+A fire burst and its burn-out are in `vfx-explosions.md`. Five examples
+here, each run in Blender 5.2:
 - a claw slash that sweeps on and breaks off;
 - a lopsided cel-shaded puff;
 - heavy dust, mottled rather than cel, for a brief that asks for weight or

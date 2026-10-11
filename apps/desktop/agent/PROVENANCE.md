@@ -73,6 +73,18 @@ user supplied and from a captioned tutorial by the artist snaliel. It
 paraphrases their observations with measured numbers; no third-party text or
 asset is included. It is distributed under the repository's licence.
 
+The repository-authored `skills/roblox-animation-vfx/references/vfx-explosions.md`,
+added on 2026-10-11, covers explosions, fire and smoke:
+- the fire body as a mass of flipbooks;
+- the handover from fire to smoke;
+- smoke's value, lighting and opacity;
+- drawn fire-burst and burn-out sheets.
+
+It is drawn from a fifth study of the same user-supplied effects and videos
+(recorded in `docs/vfx-plan.md`). It paraphrases their observations with
+measured numbers; no third-party text or asset is included. Its drawing
+examples are original. It is distributed under the repository's licence.
+
 The repository-authored `skills/roblox-animation-vfx/references/vfx-reference.md`
 covers matching a reference clip the user attaches: reading Roqer's labelled
 frames and measurements, looking closer with `reference_clip`, and comparing

@@ -1273,6 +1273,116 @@ was "draw, make it lopsided, cut it hard", and light was named only as the
 thing not to draw ("rays and rings around a centre"). The guidance now says
 the helpers are shortcuts for drawn matter and shows light written directly.
 
+## Fifth study: explosions and smoke
+
+Done 2026-10-11. The user reported two problems with the effects runs build:
+- explosions that are "just a static image growing, not a flipbook";
+- smoke that is sometimes deep black and feels off or cartoonish.
+
+### Method
+
+- **Files:** the same collection: 47 files plus a preview rig from its nested
+  zip, 5,010 particle emitters.
+  - They were parsed with a new reader for the binary format.
+- **Textures:** 1,432 textures. 1,427 came back from the public thumbnail
+  service at 700 px, against 420 px before; 5 are blocked by moderation.
+  - Each was measured for value, inner contrast, saturation, edge softness
+    and per-cell coverage.
+  - Galleries of the smoke, fire-body and static fiery textures were looked
+    at.
+- **Videos:** the 6 explosion videos were stepped at 10-30 fps.
+  - Smoke darkness and the handover from fire to smoke were measured from
+    pixels against an empty frame of the same shot.
+- **Classification:** layers were picked out by name (smoke, fog, dust, …),
+  by colour (warm, saturated and bright for fire), by size, life and texture
+  edge. The effects behind the main numbers were read by hand.
+- **Not checked:** nothing in Studio.
+
+### Findings
+
+- **The mass is a flipbook.**
+  - Of 297 fiery layers big enough to be a body, 152 are flipbooks. Of the
+    145 single images, 138 are soft light (glows, flares, streaks, rings) and
+    2 are drawn shapes.
+  - The fire bodies are 4x4 drawn or 8x8 rendered sheets: 1-7 layers of 3-28
+    particles, bursting out at Speed about 88 against Drag about 3, at random
+    angles.
+  - Brightness is about 5 at LightEmission about 0.2. The colour cools in
+    its own hue: 73% end deeper red, 24% grey, 3% black.
+- **Timing (videos):**
+  - The fire body runs 0.05-0.33 s after the flash.
+  - The burn-out (a charcoal core with glowing cracks) runs 0.3-0.5 s and is
+    the darkest moment, near-black for 0.1-0.3 s.
+  - Smoke peaks at 0.33-0.6 s, covering half the fire's area or less.
+  - A stylized blast is gone by 0.6-1.2 s; realistic smoke lingers 2-3 s.
+- **Smoke fires in the same burst as the fire** and outlives it: by up to 1 s
+  in a hit, 2-11 s in a slam.
+- **Smoke (320 layers):**
+  - 68% self-lit (`LightInfluence` 0).
+  - Rendered value about 0.7, mid to light grey.
+  - At its most solid, a median Transparency of 0.59.
+  - 72% soft or mottled; cel puffs about half transparent.
+  - Median life 1.0 s.
+  - 40 dark layers are veils (median peak Transparency 0.5); one is dense,
+    in an ink-styled piece. In the videos, smoke darkens what is behind it by
+    0.05-0.2 in luminance.
+- **Value is Colour × Brightness.** The artists' dark hex values mostly sit
+  at high Brightness: `#3f3f3f` smoke at 5-16, `#2b190c` fire ends at 15-65.
+
+### Corrections
+
+- **"Fire gradients end in black":** 124 of the 139 black-ending fire
+  layers are in one effect's slash fire. Across 1,391 fiery layers, 87% stay
+  in hue. 82% of black ends are on sheets already broken into fragments.
+- **"Smoke reads better lit by the scene (`LightInfluence` 0.35-1)":** most
+  of the scene-lit smoke is one piece, at 30-40% opacity and LightEmission
+  0.55.
+- **The smoke example** (LightEmission 0, LightInfluence 1, colour 0.32
+  grey, Transparency from 0.2) made an 80%-opaque dark puff.
+- **The impact skeleton had no fire-body role,** and its colour example was a
+  static built-in puff scaled from 6 to 12.
+- **Smoke lifetime** is 0.5-1.5 s in a hit, not 1-3 s.
+- **Fire-body Brightness** is about 5. The 25-100 at LightEmission -1 to -5
+  comes from two pieces.
+- **Rocks fall** at -60 to -200, not -15 to -27. 20 layers get their
+  variety from a sheet of variants with `FlipbookStartRandom` and `Loop` at
+  0 fps.
+- **Custom flipbook layouts** are on 368 emitters (7%).
+
+### What changed
+
+- **`vfx-explosions.md` (new topic):**
+  - the mass as a flipbook;
+  - the anatomy and timing;
+  - the fire body with an example;
+  - fire to smoke and a burn-out example;
+  - smoke with a corrected example;
+  - drawn fire-burst and burn-out sheets;
+  - checks.
+
+  The two drawings were run with the repository's numpy helpers outside
+  Blender and checked tinted. They were not run in Blender, and none of the
+  examples were built in Studio.
+- **`vfx-craft.md`:**
+  - the skeleton gains a fire-body row and a corrected smoke row;
+  - the smoke example moved to the new topic;
+  - the built-in textures are named as single images;
+  - one check is added.
+- **`vfx-design.md`:** the corrections above.
+- **`vfx-textures.md`:**
+  - smoke style shares;
+  - variety sheets;
+  - the Custom layout note.
+- **Routes:** an explosion's route (the core pair, textures, explosions,
+  camera and world) arrives in two calls.
+  - The core pair's call is 47,499 of 48,000 characters, against 46,952
+    before.
+  - `vfx-craft.test.ts` holds the new route.
+- **To check in Studio:**
+  - how Brightness combines with `LightInfluence` above 0;
+  - that Custom layouts play;
+  - the new examples, built as one effect.
+
 ## Deferred, and why
 
 - **Runtime EditableMesh/EditableImage effects** (UV scrolling on meshes,

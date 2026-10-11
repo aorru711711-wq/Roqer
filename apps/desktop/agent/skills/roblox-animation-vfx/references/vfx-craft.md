@@ -126,7 +126,8 @@ To draw the effect's own textures, which most effects should, load
 
 **Built-in textures, no upload.** These ship with Roblox for the legacy Fire,
 Smoke, Sparkles and Explosion effects. They are fine as stand-ins while
-blocking an effect out, and every Roblox player has seen them.
+blocking an effect out, and every Roblox player has seen them. Each is one
+image, so none can be an explosion's fire or smoke.
 
 | Texture | Looks like |
 | --- | --- |
@@ -157,8 +158,8 @@ then `preview_asset`) is worth a look when a texture there matches the style.
 - **Following a moving source:** `LockedToPart = true` makes particles follow
   the emitter (an aura, a held torch, a spinning model). Leave it off for
   anything thrown off.
-- **Lighting:** `LightInfluence = 0` keeps a glowing layer at its own colour.
-  Smoke reads better lit by the scene (`LightInfluence` 0.35-1).
+- **Lighting:** `LightInfluence = 0` keeps a layer at its own colour. Most
+  studied smoke is self-lit too; scene-lit smoke goes dark in shade.
 
 ## 4. Layer skeletons
 
@@ -168,7 +169,8 @@ effect's idea needs. They are a floor, not a target: a finished effect should
 look made for its game. R is the effect's radius in studs.
 
 **Impact** (a hit, an explosion; every layer fires by `EmitCount` and
-`EmitDelay`; times are from the hit):
+`EmitDelay`; times are from the hit; for fire and smoke load
+`vfx-explosions.md`):
 
 | Time | Role | Make |
 | --- | --- | --- |
@@ -178,7 +180,8 @@ look made for its game. R is the effect's radius in studs.
 | +0.03 s | Black backing | A soft black blob behind, 2-4R |
 | +0.05 s | Streaks | `VelocityParallel` with `Squash`, Speed 60-200, Drag 8-12, with a few black twins |
 | +0.05 s | Ring | A flat `VelocityPerpendicular` ring (Speed 0.001) growing to 2-3R over 0.2-0.4 s |
-| +0.05 s | Smoke | Constant-size puffs (4 x 4 OneShot), cel for a toon look or mottled for a heavy one (`vfx-textures.md`), Speed 50-120, Drag 8, Lifetime 1-1.5, Transparency to above 1, `TimeScale` 0.7, a warm and a grey layer; beside fire, carrying the fire's colour where it is lit |
+| +0.03 s | Fire body | For fire: 2-4 fire-burst flipbook layers, never one image scaling, 3-25 particles each, Speed 60-400, Drag 3-6, Lifetime 0.45-1, Brightness about 5, cooling from yellow-white to red, then a burn-out |
+| +0.05 s | Smoke | The same burst, living 1.5-3 times as long: self-lit mid-grey sheets (or tinted by the fire), half transparent at their most solid, `TimeScale` 0.7, gone by about 1.5 s for a hit |
 | +0.05 s | Embers | Dots at `LightEmission` 1, Speed 10-120, Drag 10, Lifetime 0.75-2 |
 | 0 | Light | A PointLight at Brightness 7-16, Range 7-15, fading over 0.5 s |
 
@@ -189,7 +192,7 @@ look made for its game. R is the effect's radius in studs.
   - Growing to 25-35 studs by 60% of life, Transparency from 0.45-0.85 to
     above 1.
   - `LightEmission` 1, `RotSpeed` ±15-20, `ZOffset` 0.5, over the smoke.
-- **Smoke:** puffs in warm and grey pairs, lit by the scene.
+- **Smoke:** self-lit puffs in warm and grey pairs.
 - **A ground skirt:** a flat copy of the smoke, squashed.
 - **Black grit:** a few dark dust particles.
 
@@ -233,9 +236,10 @@ Flash, in front of everything, for a frame or two:
 }
 ```
 
-The impact's three-value stack: colour; its black twin just in front, the
-same emitter with only the colour and blending changed; and a small white
-core in front of both:
+The impact stars' three-value stack: colour; its black twin just in front,
+the same emitter with only the colour and blending changed; and a small white
+core in front of both. The stand-in is one image; in the effect it is the
+spiky sheet:
 
 ```json
 [
@@ -324,25 +328,7 @@ Attachment with the ground:
 }
 ```
 
-Smoke that bursts out, hangs, runs slower than the core and is lit by the
-scene:
-
-```json
-{
-  "op": "create", "className": "ParticleEmitter", "name": "Smoke",
-  "properties": {
-    "Texture": "rbxasset://textures/particles/smoke_main.dds",
-    "Rate": 0, "Enabled": false, "Lifetime": [1, 1.5], "Speed": [50, 90],
-    "SpreadAngle": [180, 180], "Drag": 8, "Acceleration": [0, 3, 0], "TimeScale": 0.7,
-    "Rotation": [0, 360], "RotSpeed": [-30, 30],
-    "LightEmission": 0, "LightInfluence": 1, "Brightness": 1,
-    "Color": [0.32, 0.28, 0.26],
-    "Size": 6,
-    "Transparency": [{ "time": 0, "value": 0.2 }, { "time": 1, "value": 1.6 }]
-  },
-  "attributes": { "EmitCount": 5, "EmitDelay": 0.2 }
-}
-```
+The fire body, burn-out and smoke examples are in `vfx-explosions.md`.
 
 Light flash:
 
@@ -473,6 +459,9 @@ capture instead of caught in passing.
      edge is a thin line across the view.
    - Does a light tint the whole floor?
    - Does the smoke beside the fire take its colour, or is it one flat tone?
+   - For fire: is the body a boiling mass of sheets, or one image scaling
+     up? Is the darkest smoke a brief burn-out, or a dark puff that lingers?
+     (`vfx-explosions.md` section 7.)
    - Does every layer show? Thin sparks and faint smoke vanish at a normal
      camera distance.
    - Does one layer bury another?

@@ -267,7 +267,7 @@ test("an effect's references arrive in at most two calls, the core pair together
   const runtime = await loadAgentRuntime(agentRoot);
   const core = ["references/vfx-design.md", "references/vfx-craft.md"];
   const routes = {
-    explosion: [...core, "references/vfx-textures.md"],
+    explosion: [...core, "references/vfx-textures.md", "references/vfx-explosions.md", "references/vfx-camera-world.md"],
     missile: [...core, "references/vfx-textures.md", "references/vfx-motion.md", "references/vfx-camera-world.md"],
     slam: [...core, "references/vfx-textures.md", "references/vfx-mesh-shapes.md", "references/vfx-camera-world.md"],
     // An effect matched to a clip the user attached.
@@ -299,9 +299,11 @@ test("under ChatGPT, every effect's references arrive in one call", async () => 
     barrage: [...core, "references/vfx-textures.md", "references/vfx-motion.md", "references/vfx-mesh-shapes.md"],
     missile: [...core, "references/vfx-textures.md", "references/vfx-motion.md", "references/vfx-camera-world.md"],
     slam: [...core, "references/vfx-textures.md", "references/vfx-mesh-shapes.md", "references/vfx-camera-world.md"],
-    reference: [...core, "references/vfx-reference.md", "references/vfx-textures.md", "references/vfx-camera-world.md"],
-    everything: [...core, "references/vfx-textures.md", "references/vfx-motion.md", "references/vfx-mesh-shapes.md",
+    explosion: [...core, "references/vfx-textures.md", "references/vfx-explosions.md", "references/vfx-mesh-shapes.md",
       "references/vfx-camera-world.md"],
+    reference: [...core, "references/vfx-reference.md", "references/vfx-textures.md", "references/vfx-camera-world.md"],
+    everything: [...core, "references/vfx-textures.md", "references/vfx-explosions.md", "references/vfx-motion.md",
+      "references/vfx-mesh-shapes.md", "references/vfx-camera-world.md"],
   };
   for (const [effect, route] of Object.entries(routes)) {
     const run = createSkillToolRunner(runtime.skillLibrary, { maxBatchCharacters: STEERED_BATCH_CHARACTERS });
