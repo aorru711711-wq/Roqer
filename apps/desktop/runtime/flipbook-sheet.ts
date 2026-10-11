@@ -15,6 +15,15 @@ export type FlipbookGrid = (typeof FLIPBOOK_GRIDS)[number];
 const MAX_FLIPBOOK_FRAMERATE = 30;
 /** A pixel counts as drawn above this: alpha on a transparent sheet, brightness on a black one. */
 const CONTENT_THRESHOLD = 8;
+/** A pixel is part of the drawing's body, not its faint rim, at or above this: the outline frames are compared by. */
+const BODY_THRESHOLD = 96;
+/**
+ * A frame whose body differs from the last one by less than this share is all
+ * but held. Studied artists' one-shot sheets change a median 44% from one 4 x 4
+ * frame to the next; 5% of 455 hold most of the way, nearly all rings, cracks
+ * and glows that only fade.
+ */
+const SLOW_CHANGE = 0.12;
 /** The most pixels a sheet may decode to; a little over 1024 x 1024 leaves room for a wrong size to be reported. */
 const MAX_PIXELS = 2048 * 2048;
 const MAX_INPUT_BYTES = 24 * 1024 * 1024;
@@ -123,6 +132,13 @@ export type FlipbookReport = Readonly<{
   edgeCells: readonly number[];
   /** Cells identical to the one before: frames that do not move. */
   repeatedCells: readonly number[];
+  /**
+   * A stretch that barely changes shape from frame to frame: from `from`, the first cell
+   * at least half the drawing's largest, to `to`, the last drawn one, the outline moves a
+   * median `change` (0..1) a frame. There the sheet plays as one still image that only
+   * scales or fades.
+   */
+  heldStretch?: Readonly<{ from: number; to: number; change: number }>;
   problems: readonly string[];
   /** Worth knowing, but not wrong: a sheet with notes and no problems is fine to use. */
   notes?: readonly string[];
@@ -144,6 +160,45 @@ function contentMask(image: DecodedPng): { mask: Uint8Array; background: Flipboo
       : (alpha > CONTENT_THRESHOLD && bright > CONTENT_THRESHOLD ? 1 : 0);
   }
   return { mask, background };
+}
+
+/**
+ * The stretch where a sheet holds one drawing, if it has one. Frames are compared a 4 x 4
+ * frame's time apart (every fourth cell on 8 x 8), over the cells where the body is at
+ * least half its largest, as 1 minus the overlap of the two outlines over their union.
+ * Pairs of cells that are exact repeats are left out: those are reported on their own.
+ */
+function findHeldStretch(bodies: readonly Uint8Array[], grid: number, repeatedCells: readonly number[]): FlipbookReport["heldStretch"] {
+  const areas = bodies.map((body) => body.reduce((sum, value) => sum + value, 0));
+  const largest = Math.max(...areas);
+  if (largest === 0) return undefined;
+  const from = areas.findIndex((area) => area >= largest / 2);
+  let to = areas.length - 1;
+  while (to > from && areas[to] <= largest * 0.02) to--;
+  const step = grid === 8 ? 4 : 1;
+  const repeated = new Set(repeatedCells);
+  const changes: number[] = [];
+  for (let index = from; index + step <= to; index++) {
+    let exact = true;
+    for (let k = 1; k <= step; k++) exact &&= repeated.has(index + k);
+    if (exact) continue;
+    const a = bodies[index];
+    const b = bodies[index + step];
+    let both = 0;
+    let either = 0;
+    for (let i = 0; i < a.length; i++) {
+      both += a[i] & b[i];
+      either += a[i] | b[i];
+    }
+    changes.push(either === 0 ? 0 : 1 - both / either);
+  }
+  if (changes.length < 3) return undefined;
+  const sorted = [...changes].sort((x, y) => x - y);
+  const middle = sorted.length / 2;
+  const median = sorted.length % 2 === 1 ? sorted[Math.floor(middle)] : (sorted[middle - 1] + sorted[middle]) / 2;
+  const slow = changes.filter((change) => change < SLOW_CHANGE).length;
+  if (median >= SLOW_CHANGE || slow * 2 < changes.length) return undefined;
+  return { from, to, change: Math.round(median * 1000) / 1000 };
 }
 
 /** Whether a grid's boundary rows and columns, two pixels each, are free of drawing. */
@@ -189,6 +244,7 @@ export function analyzeFlipbook(png: Buffer, claim: FlipbookClaim = {}): Flipboo
   const emptyCells: number[] = [];
   const edgeCells: number[] = [];
   const repeatedCells: number[] = [];
+  const bodies: Uint8Array[] = [];
   let previous: Buffer | undefined;
   for (let row = 0; row < grid; row++) {
     for (let column = 0; column < grid; column++) {
@@ -196,10 +252,14 @@ export function analyzeFlipbook(png: Buffer, claim: FlipbookClaim = {}): Flipboo
       let drawn = 0;
       let touches = false;
       const bytes = Buffer.alloc(cell * cell * 4);
+      const body = new Uint8Array(cell * cell);
       for (let y = 0; y < cell; y++) {
         const sheetRow = row * cell + y;
         image.rgba.copy(bytes, y * cell * 4, (sheetRow * side + column * cell) * 4, (sheetRow * side + column * cell + cell) * 4);
         for (let x = 0; x < cell; x++) {
+          const pixel = (y * cell + x) * 4;
+          const level = background === "black" ? Math.max(bytes[pixel], bytes[pixel + 1], bytes[pixel + 2]) : bytes[pixel + 3];
+          if (level >= BODY_THRESHOLD) body[y * cell + x] = 1;
           if (!mask[sheetRow * side + column * cell + x]) continue;
           drawn++;
           if (x < band || y < band || x >= cell - band || y >= cell - band) touches = true;
@@ -208,10 +268,13 @@ export function analyzeFlipbook(png: Buffer, claim: FlipbookClaim = {}): Flipboo
       coverage.push(Math.round((drawn / (cell * cell)) * 1000) / 10);
       if (drawn === 0) emptyCells.push(index);
       if (touches) edgeCells.push(index);
-      if (previous !== undefined && previous.equals(bytes)) repeatedCells.push(index);
+      // An empty cell is reported as empty, not as a repeat of the empty cell before it.
+      if (previous !== undefined && drawn > 0 && previous.equals(bytes)) repeatedCells.push(index);
       previous = bytes;
+      bodies.push(body);
     }
   }
+  const heldStretch = findHeldStretch(bodies, grid, repeatedCells);
   const cells = grid * grid;
   // A burst played once may end fully faded: its last cells are empty on purpose.
   let fadedTail = 0;
@@ -227,6 +290,10 @@ export function analyzeFlipbook(png: Buffer, claim: FlipbookClaim = {}): Flipboo
   // Held frames can be deliberate (a short animation, a pause), so they are a note, not a problem.
   const notes: string[] = [];
   if (repeatedCells.length > 0) notes.push(`${repeatedCells.length} cell${repeatedCells.length === 1 ? " repeats" : "s repeat"} the one before (${listCells(repeatedCells)}): the animation holds there. Fine for a pause; otherwise animate more frames or use a smaller grid.`);
+  if (heldStretch !== undefined) {
+    const pace = grid === 8 ? " (every fourth cell, the pace of a 4 x 4 sheet)" : "";
+    notes.push(`Cells #${heldStretch.from + 1}-#${heldStretch.to + 1} barely change shape: the outline moves a median ${Math.round(heldStretch.change * 100)}% from one frame to the next${pace}, where studied artists' sheets move about 40%. There the sheet plays as one still image that only scales or fades. Fine for a ring, crack or glow that only fades; a burst, fire or smoke should keep changing shape (grow, boil, break apart) in every frame.`);
+  }
   const fps = claim.fps !== undefined && claim.fps > 0 ? claim.fps : undefined;
   const lifetime = claim.loop === false && fps !== undefined ? Math.round((cells / fps) * 100) / 100 : undefined;
   // A loop plays at FlipbookFramerate, which Roblox caps at 30 frames a second.
@@ -238,7 +305,10 @@ export function analyzeFlipbook(png: Buffer, claim: FlipbookClaim = {}): Flipboo
     ...(lifetime === undefined ? {} : { lifetime }),
     ...(framerate === undefined ? {} : { framerate }),
   };
-  return { ...base, ok: problems.length === 0, detectedGrid, grid, coverage, emptyCells, edgeCells, repeatedCells, problems, notes, settings };
+  return {
+    ...base, ok: problems.length === 0, detectedGrid, grid, coverage, emptyCells, edgeCells, repeatedCells,
+    ...(heldStretch === undefined ? {} : { heldStretch }), problems, notes, settings,
+  };
 }
 
 function listCells(cells: readonly number[]): string {

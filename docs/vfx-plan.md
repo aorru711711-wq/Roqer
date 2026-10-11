@@ -1383,6 +1383,63 @@ Done 2026-10-11. The user reported two problems with the effects runs build:
   - that Custom layouts play;
   - the new examples, built as one effect.
 
+### After the first fireball run
+
+The fireball brief on the new guidance gave the effect we were after:
+- a flash, a spiky burst, boiling fire, fragments and smoke;
+- gone by 2 s.
+
+The user called it better. The impact-star sheet still looked weird.
+
+**What the sheet did:**
+- **It grew, then held.** It was a round puff with about nine straight
+  spikes spread evenly, full size by cell 4. Cells 4-12 kept that one drawing,
+  the outline moving 3-9% a frame (median 9% over the sheet), before it broke
+  up.
+- **It read as a comic sticker.**
+- **The check stayed silent.** Roqer's sheet check flagged only
+  byte-identical cells, so it said nothing.
+- **Measured the same way, studied sheets move far more** (frames compared a
+  4 x 4 frame's time apart):
+  - 455 one-shot sheets: a median 44% a frame;
+  - impact stars 40%, fire 34%, smoke 30%.
+- **The 5% that hold** are nearly all rings, cracks and glows that only fade.
+- **The 18 studied impact-star sheets** mostly burst open: shards fly out and
+  the centre empties into a ring, or a four-point flare turns. Their last
+  drawn cell comes a median 73% of the way through.
+- **Likely contributors:**
+  - the flash is described as "a filled spiky shape… solid at the centre";
+  - the skeleton said only "a spiky 4 x 4 sheet";
+  - the new fire burst drew tongues from a blob's rim and reached full size a
+    third of the way in;
+  - the new burn-out's outline held for nine frames, moving 3%.
+
+**What changed:**
+- **`runtime/flipbook-sheet.ts`:**
+  - The check compares each frame's body (alpha 96 and above) with the next,
+    a 4 x 4 frame's time apart, over the cells where the drawing is at least
+    half its largest.
+  - When the median change is under 12% and half the steps are, it notes the
+    stretch with its numbers, as `heldStretch`.
+  - In the TypeScript check it fires on the agent's sheet. Its Python
+    calibration flags 5% of the studied sheets.
+  - Empty cells no longer count as repeats, so a burst's blank tail is not
+    "holding".
+- **`vfx-textures.md`:**
+  - every frame changes shape (with the numbers);
+  - how impact stars burst, and that the flash is a different layer;
+  - an impact-star example that opens into a ring of shards (78% a frame);
+  - the change check asks about a held middle;
+  - duplicated preview and upload advice was merged to make room.
+- **`vfx-explosions.md`:** the fire burst and burn-out keep moving (30% and
+  20% a frame).
+- **`vfx-craft.md`:** the impact-stars row says the sheet bursts open.
+- **Checks:**
+  - All three examples were run with the helpers in numpy outside Blender.
+  - The real check passes them.
+  - An explosion's route still arrives in two calls; its second call is
+    47,623 of 48,000 characters.
+
 ## Deferred, and why
 
 - **Runtime EditableMesh/EditableImage effects** (UV scrolling on meshes,

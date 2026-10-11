@@ -63,6 +63,21 @@ texture, stop and report what is failing instead of escalating.
   apart, 15% shrink and fade, and 6% erode in one piece; the drawing is
   largest at a median 27% of the way through, and half end in blank cells.
   4 x 4 is on 81% of flipbook emitters *(measured)*.
+- **Every frame changes shape.** In 455 studied one-shot sheets the outline
+  moves a median 44% from one 4 x 4 frame to the next; 5% hold, nearly all
+  rings, cracks and glows that only fade *(measured)*. A sheet that grows and
+  then keeps one drawing plays as a still image: an agent's impact star held
+  one shape for nine frames. Drift the warp fast, flicker strokes and open
+  holes early; Roqer's sheet check names a stretch that barely changes.
+- **Impact stars burst open** *(measured: 18 sheets)*.
+  - Two kinds lead. In one, shards fly out from a solid heart and their inner
+    ends follow, so the centre empties into a ring. In the other, a
+    four-point flare turns.
+  - The drawing is largest about a fifth of the way in, and the last drawn
+    cell comes a median 73% of the way through. Every frame is redrawn.
+  - The flash is another layer: one big filled shape for a frame or two. A
+    round puff with even, straight spikes that holds its shape reads as a
+    comic sticker.
 - **Size within the cell varies.**
   - Many sheets fill most of the cell at their largest frame.
   - The hand-drawn set keeps shapes small: half span less than 27% of the
@@ -131,7 +146,8 @@ sheet instead, for a lit volume or simulation (`vfx-rendered-flipbooks.md`).
   texture. That address plays on a particle in Studio as an upload would
   (checked in Studio on Windows), so iterate on textures inside the effect
   for free.
-  - A redraw comes from a new job, with new addresses.
+  - A redraw comes from a new job, with new addresses: Studio keeps a file's
+    first image for the session.
   - The addresses work on this computer only; players see nothing there.
 - **Upload:** send the whole settled set in one `upload_assets` call, each
   file as a `Decal`, and use each result's `imageId` as
@@ -207,11 +223,7 @@ core.
 - **Trails and beams** take a texture too, drawn as a vertical strip: the
   image's top is a Trail's head and its left edge `Attachment0` (see
   `vfx-motion.md`).
-- **Frames:** 4 x 4 sheets are the most common. The shape grows to a peak
-  around frame 4-6, then breaks into 2-6 pieces; the last cells may be blank.
-- **Size in the cell varies.** Many sheets fill most of the cell. The
-  hand-drawn set keeps shapes small (half span less than 27% of the cell) and
-  lets the particle's `Size` scale them.
+- **Frames and size in the cell:** see "What textures look like" above.
 - **Glows:** soft round glows are one layer among many, not the effect.
 
 A soft, grey, rendered smoke ball with no silhouette, whose frames barely
@@ -281,8 +293,8 @@ The pattern behind drawn matter:
      `tex_edge(noise - t * 1.1)`, or erase a stroke from its head by raising
      `start`.
 
-A fire burst and its burn-out are in `vfx-explosions.md`. Five examples
-here, each run in Blender 5.2:
+A fire burst and its burn-out are in `vfx-explosions.md`, and an impact star
+follows the five examples here, each run in Blender 5.2:
 - a claw slash that sweeps on and breaks off;
 - a lopsided cel-shaded puff;
 - heavy dust, mottled rather than cel, for a brief that asks for weight or
@@ -384,6 +396,36 @@ roqer.draw_texture("GroundCracks", cracks, size=512)
 It runs in seconds. Draw at the final size: a sheet is 1024 x 1024, so a 4 x 4
 frame is 256 px.
 
+An impact star that bursts open (run in numpy outside Blender; its outline
+moves a median 78% a frame):
+
+```python
+import numpy
+
+# Impact star: shards burst from a lumpy heart and their inner ends chase their tips, so the centre
+# empties into a ring that is gone by about 75%. Each frame is jittered anew, so it thrashes.
+RNG = numpy.random.default_rng(21)
+SHARDS = [((i + RNG.uniform(-0.5, 0.5)) / 11 * 2 * numpy.pi, RNG.uniform(0.35, 1.0), RNG.uniform(0.05, 0.14)) for i in range(11)]   # uneven
+
+def impact_star(t, size):
+    x, y = roqer.tex_coords(size)
+    flick = numpy.random.default_rng(int(t * 1000))                       # a different jitter every frame
+    out = roqer.tex_ease(min(1.0, t * 2.2))                               # the shards fly out by about half way
+    field = roqer.tex_blob(x, y, radius=0.3 * (1 - t * 3.5), lumps=7, roughness=0.6, seed=int(t * 1000))   # the heart, first frames only
+    for angle, length, width in SHARDS:
+        a = angle + flick.uniform(-0.08, 0.08)
+        tip = 0.9 * length * (0.3 + 0.7 * out) * flick.uniform(0.9, 1.1)
+        inner = tip * min(0.95, t * 1.9)                                  # the inner end chases the tip
+        path = numpy.array([(numpy.cos(a) * r, numpy.sin(a) * r) for r in (inner, (inner + tip) / 2, tip)])
+        w = width * max(0.0, 1 - t * 1.35) * flick.uniform(0.7, 1.3)   # gone by about 75%
+        if w <= 0:
+            continue
+        field = numpy.maximum(field, roqer.tex_stroke(x, y, path, [w * 0.3, w, 0.0]))   # a shard: thin, fat, then a point
+    return roqer.tex_edge(field, soft=0.006)
+
+roqer.draw_flipbook("ImpactStar", impact_star, grid=4, fps=60)
+```
+
 **Light** is a falloff, not a cut shape. Build it from smooth functions of the
 distance to a centre or a line (`numpy.exp`), keep its symmetry, and leave
 variety to the emitter's `Rotation`, `Squash`, `Size` and `Brightness`. Two
@@ -435,8 +477,8 @@ whether it looks like light:
   or a gear?
 - **Edges:** is drawn matter crisp? Soft is for light, and for the inside of
   smoke drawn mottled on purpose.
-- **Change:** does the shape change across the frames (grow, then break into
-  pieces), or does it only scale or fade?
+- **Change:** does the shape change in every frame (grow, then break into
+  pieces), or does it only scale or fade, or hold one drawing in the middle?
 - **Distance:** would it survive at game distance, or is it too thin?
 - **Ground marks:** does it spread from the point of impact (cracks forking
   out, frost creeping from the centre), or is it an even pattern of cells
@@ -454,27 +496,18 @@ What Roqer reports for each sheet is read from its pixels:
 - the coverage of every cell in play order, which should grow and shrink as
   the effect does;
 - **problems:** empty cells and drawing cut off at a cell's edge;
-- **notes:** frames that hold;
+- **notes:** frames that repeat, and a stretch that barely changes shape;
 - the `FlipbookLayout`, `FlipbookMode` and `LightEmission` to use, with the
   `Lifetime` for a one-shot sheet or the `FlipbookFramerate` for a loop.
 
 Fix every problem before uploading, and weigh every note. The sheet is
 attached; look at it.
 
-**Preview before uploading.** Run the job with `preview_in_studio: true`.
-Roqer copies each sheet and PNG into the user's Studio install and returns an
-`rbxasset://textures/roqer-preview/...` address for each. Set a
-`ParticleEmitter.Texture` to it, and Studio plays the sheet as players would
-see it, with no upload (checked in Studio on Windows).
-- **A redraw needs a new job.** Studio keeps a file's first image for the
-  session, and each job's files get new addresses. Point the emitters at the
-  new ones.
-- **The addresses work on this computer only.** Players see nothing there.
-
 To use a sheet:
 
-1. **While it changes:** iterate on previews (above). Judge each version in
-   the effect, at game distance, before drawing the next.
+1. **While it changes:** iterate on previews (`preview_in_studio: true`,
+   above), pointing the emitters at each new job's addresses. Judge each
+   version in the effect, at game distance, before drawing the next.
 2. **Once it is settled:** upload it with every other settled texture in one
    `upload_assets {uploads: [{filePath, assetType: 'Decal', displayName}, ...]}`
    call (a single file can also go with `upload_asset`), and set
@@ -485,12 +518,8 @@ To use a sheet:
      `game:GetDescendants()` and report each ParticleEmitter, Beam, Trail,
      Decal or Texture whose `Texture` starts with that prefix.
 3. **Apply the settings Roqer listed.**
-4. **Confirm it plays:** hold one particle at a few ages (`TimeScale = 0`) and
-   take screenshots. Each should show one frame, not the whole grid. Do not go
-   by `FlipbookIncompatible`: Studio shows its size message even for a sheet
-   that plays.
+4. **Confirm it plays** as the flipbook rules above say: one frame per
+   capture, not the whole grid.
 
-Every upload is irreversible and moderated, so upload only settled sheets.
-Put several textures an effect needs into one job, and reuse one sheet across
-layers by changing `Color`, `Size`, `Rotation` and `Squash`. For layering,
-timing and the rest of the effect, see `vfx-craft.md`.
+Put several textures an effect needs into one job. For layering, timing and
+the rest of the effect, see `vfx-craft.md`.

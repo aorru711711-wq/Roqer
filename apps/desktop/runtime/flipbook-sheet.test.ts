@@ -109,10 +109,43 @@ test("empty cells are problems; held frames are only noted", () => {
 });
 
 test("a small drawing in its cells is fine: hand-drawn sheets often keep shapes small", () => {
-  // Radius 20 in a 256-pixel cell spans about 16% of it; a studied hand-drawn set's median is 27%.
-  const small = analyzeFlipbook(sheet(4, (i) => 12 + i), { grid: 4 });
+  // At its largest, radius 34 in a 256-pixel cell spans about 27% of it, a studied hand-drawn set's
+  // median. It grows 2 pixels a frame: a disc that grew by 1 would all but hold its shape.
+  const small = analyzeFlipbook(sheet(4, (i) => 4 + i * 2), { grid: 4 });
   assert.equal(small.ok, true, small.problems.join("\n"));
   assert.deepEqual(small.notes, []);
+});
+
+test("a burst that grows and then keeps one shape is noted as a still image", () => {
+  // Full size by cell 4, then a pixel's flicker for nine frames, then gone: an agent's impact star did this.
+  const radius = (i: number) => (i < 3 ? 30 + i * 30 : i < 13 ? 100 + (i % 2) : 100 - (i - 12) * 30);
+  const report = analyzeFlipbook(sheet(4, radius), { grid: 4, loop: false });
+  assert.equal(report.ok, true, report.problems.join("\n"));
+  assert.equal(report.heldStretch?.from, 2);
+  assert.ok((report.heldStretch?.change ?? 1) < 0.05);
+  assert.ok(describeFlipbook("star.flipbook.png", report).some((line) => /^ {2}Note: Cells #3-#\d+ barely change shape: the outline moves a median \d+% from one frame to the next, where studied artists' sheets move about 40%/.test(line)));
+});
+
+test("a burst that changes shape every frame gets no hold note, and an 8 x 8 sheet is paced like a 4 x 4", () => {
+  const radii = [20, 45, 70, 95, 110, 98, 84, 70, 58, 46, 36, 28, 20, 14, 8, 0];
+  const lively = analyzeFlipbook(sheet(4, (i) => radii[i]), { grid: 4, loop: false });
+  assert.equal(lively.heldStretch, undefined);
+  assert.ok(!(lively.notes ?? []).some((note) => /barely change/.test(note)));
+  // Blank cells at the end of a burst are its fade, not frames that repeat.
+  const faded = analyzeFlipbook(sheet(4, (i) => (i < 12 ? radii[i] : 0)), { grid: 4, loop: false });
+  assert.deepEqual(faded.repeatedCells, []);
+  assert.deepEqual(faded.notes, []);
+  // The same pace on 8 x 8 moves a quarter as much from one cell to the next; it is compared every fourth cell.
+  const paced = analyzeFlipbook(sheet(8, (i) => 4 + i * 0.85), { grid: 8, loop: false });
+  assert.equal(paced.heldStretch, undefined);
+  const still = analyzeFlipbook(sheet(8, (i) => (i < 8 ? 6 + i * 6 : 50 + (i % 2))), { grid: 8, loop: false });
+  assert.ok(still.notes?.some((note) => /barely change shape: .*\(every fourth cell, the pace of a 4 x 4 sheet\)/.test(note)));
+});
+
+test("exact repeats are reported once, not again as a held stretch", () => {
+  const held = analyzeFlipbook(sheet(4, (i) => 10 + Math.floor(i / 2) * 6), { grid: 4 });
+  assert.ok(held.notes?.some((note) => /cells repeat the one before/.test(note)));
+  assert.equal(held.heldStretch, undefined);
 });
 
 test("a wrong claim is checked against the gutters in the pixels", () => {

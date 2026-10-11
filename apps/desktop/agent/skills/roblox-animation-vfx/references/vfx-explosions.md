@@ -51,10 +51,9 @@ The 152 fire-body flipbooks *(measured)*:
 | Colour at the end | deeper in its hue 73%, grey 24%, black 3% |
 | Frames | largest a median 27% of the way through; 55 of 79 sheets end blank |
 
-A studied fireball skill boils by overlap. Three drawn 4x4 flame sheets
-stream at `Rate` 55-90 a second, Speed 225-380 and Drag 3-4. Each particle
-grows on an ease-out, at a random angle, for 0.35-0.75 s. One big sprite
-cannot do that.
+A studied fireball boils by overlap: three drawn 4x4 flame sheets stream at
+`Rate` 55-90, Speed 225-380, Drag 3-4, each particle easing out at a random
+angle for 0.35-0.75 s.
 
 A fire-body layer for a hit with R about 5. Its delays match the
 `vfx-craft.md` examples, whose flash fires at 0.14 s. Set `Texture` to your
@@ -175,16 +174,19 @@ They were run with the helpers in numpy outside Blender (about 6 s), and
 checked tinted.
 - **Fire burst:** a white-hot puff grows by a third of the way, cools
   through yellow and orange to red, and breaks into fragments.
-- **Burn-out:** mottled charcoal whose few cracks cool while it thins and
-  tears.
+- **Burn-out:** mottled charcoal that swells, churns and lifts while its few
+  cracks cool and it thins and tears.
+
+Neither holds a shape. Their outlines move a median 30% and 20% from frame to
+frame; studied sheets move about 40% (`vfx-textures.md`).
 
 ```python
 import numpy
 
 NOISE = roqer.tex_noise(256, scale=6, seed=1)
 
-# Fire burst: a lopsided body ringed with flame tongues; grows, boils, burns through from the
-# inside, breaks into fragments. Value: one hot heart (1) in a cooler body (0.55).
+# Fire burst: a lopsided body ringed with flickering tongues; grows, boils, burns through and
+# breaks up. Value: one hot heart (1) in a cooler body (0.55).
 RNG = numpy.random.default_rng(3)
 TONGUES = [(RNG.uniform(-0.6, 0.6) + (numpy.pi / 2 if i % 3 else RNG.uniform(0, 2 * numpy.pi)),   # most lick upward
             RNG.uniform(0.15, 0.4), RNG.uniform(0.07, 0.13), RNG.choice([-1, 1])) for i in range(11)]
@@ -193,32 +195,33 @@ RAG = roqer.tex_noise(256, scale=12, octaves=3, seed=4)
 
 def fire_burst(t, size):
     x, y = roqer.tex_coords(size)
-    wx, wy = roqer.tex_warp(x, y, amount=0.08, scale=4, seed=2, t=t * 0.6)      # drifts: the flames boil
-    grow = roqer.tex_ease(t * 3)                                                # full size a third of the way in
+    wx, wy = roqer.tex_warp(x, y, amount=0.1, scale=4, seed=2, t=t * 1.6)       # drifts fast: boils
+    grow = roqer.tex_ease(t * 3)                                                # full size by a third
     radius = 0.16 + 0.22 * grow
     body = roqer.tex_blob(wx, wy, radius=radius, lumps=9, roughness=0.75, seed=5)
-    for angle, reach, width, curl in TONGUES:                                    # uneven, curling tongues
+    for n, (angle, reach, width, curl) in enumerate(TONGUES):                   # uneven tongues that flicker
         base = (numpy.cos(angle) * radius * 0.7, numpy.sin(angle) * radius * 0.7)
-        tip = (base[0] + numpy.cos(angle) * reach * grow, base[1] + numpy.sin(angle) * reach * grow + 0.05 * t)
+        lick = reach * grow * (0.7 + 0.3 * numpy.sin(t * 19 + n * 2.3))
+        tip = (base[0] + numpy.cos(angle) * lick, base[1] + numpy.sin(angle) * lick + 0.05 * t)
         bend = ((base[0] + tip[0]) / 2 - numpy.sin(angle) * 0.06 * curl, (base[1] + tip[1]) / 2 + numpy.cos(angle) * 0.06 * curl)
         path = roqer.tex_curve([base, bend, tip], 16)
         body = numpy.maximum(body, roqer.tex_stroke(wx, wy, path, [width * (1 - 0.5 * t), 0.0]))
     body = body + (roqer.tex_sample(RAG, wx * 0.5 + t * 0.2, wy * 0.5 - t * 0.5) - 0.5) * 0.08   # ragged rim
-    burn = roqer.tex_sample(CHURN, x * 0.6 + 0.3, y * 0.6 - t * 0.4) - max(0.0, t - 0.3) * 1.5 + 0.1    # holes from 30%
+    burn = roqer.tex_sample(CHURN, x * 0.6 + 0.3, y * 0.6 - t * 0.4) - max(0.0, t - 0.2) * 1.4 + 0.1    # holes from 20%
     alpha = roqer.tex_edge(body, soft=0.008) * roqer.tex_edge(burn + body * 0.6, soft=0.02)
     heat = roqer.tex_sample(CHURN, wx * 0.5 - t * 0.3, wy * 0.5 + t * 0.6) + body * 2.5 - 0.05 - t * 1.1   # shrinking heart
     return alpha, 0.55 + 0.45 * roqer.tex_edge(heat, 0.5, soft=0.02)
 
-# Burn-out: mottled charcoal (value about 0.15) with a few thin cracks (1) that cool, torn by
-# holes and thinning to a veil. Under a warm Color at Brightness 2-3: charcoal with embers.
+# Burn-out: mottled charcoal (value about 0.15) with thin cracks (1) that cool; it swells, lifts,
+# tears and thins. Under a warm Color at Brightness 2-3: charcoal with embers.
 RIDGES = roqer.tex_noise(256, scale=7, octaves=4, seed=12)
 MOTTLE = roqer.tex_noise(256, scale=8, octaves=4, seed=13)
 
 def burn_out(t, size):
     x, y = roqer.tex_coords(size)
-    wx, wy = roqer.tex_warp(x, y, amount=0.1, scale=4, seed=6, t=t * 0.3)
-    body = roqer.tex_blob(wx, wy, radius=0.4 + 0.12 * t, lumps=10, roughness=0.8, seed=7)    # swells as it thins
-    holes = roqer.tex_sample(NOISE, x * 0.5 + 0.1, y * 0.5 + t * 0.3) - t * 1.5 + 0.55
+    wx, wy = roqer.tex_warp(x, y, amount=0.16, scale=4, seed=6, t=t * 2.2)        # churns as it rises
+    body = roqer.tex_blob(wx, wy - 0.15 * t, radius=0.3 + 0.25 * roqer.tex_ease(t * 1.5), lumps=10, roughness=0.8, seed=7)   # swells and lifts
+    holes = roqer.tex_sample(NOISE, x * 0.5 + 0.1, y * 0.5 + t * 0.6) - t * 1.4 + 0.45
     alpha = roqer.tex_edge(body, soft=0.04) * roqer.tex_edge(holes + body * 0.3, soft=0.08) * (0.9 - 0.4 * t)
     ridge = 1 - numpy.abs(roqer.tex_sample(RIDGES, wx * 0.5 + 0.5, wy * 0.5 + 0.5) * 2 - 1)   # wandering lines
     patches = roqer.tex_edge(roqer.tex_sample(MOTTLE, x * 0.25 + 0.4, y * 0.25), 0.5, soft=0.05)   # only in places
@@ -230,7 +233,7 @@ roqer.draw_flipbook("FireBurst", fire_burst, grid=4, fps=30)
 roqer.draw_flipbook("BurnOut", burn_out, grid=4, fps=16)
 ```
 
-Draw two or three bursts with other seeds, so overlapping layers differ.
+Draw two or three bursts with other seeds so overlapping layers differ.
 
 **Realistic explosions** use 8x8 sheets rendered from a fire and smoke
 simulation, with the colour baked in. Roqer cannot render one yet. For a

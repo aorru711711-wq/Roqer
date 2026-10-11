@@ -176,7 +176,7 @@ look made for its game. R is the effect's radius in studs.
 | --- | --- | --- |
 | -0.15 s | Anticipation | A glow that shrinks from 1.5R to 0 over 0.1-0.15 s, spinning fast |
 | 0 | Flash | A soft ball or four-point flare, 0 to 2.5R, Lifetime 0.06-0.1, Brightness 10, `ZOffset` in front |
-| +0.03 s | Impact stars | A spiky 4 x 4 sheet, Lifetime 0.075-0.15, EmitCount 2-6, as a colour layer (`ZOffset` z), its black twin (the same size, life and count, z to z + 0.25) and a white copy (z + 1) |
+| +0.03 s | Impact stars | A 4 x 4 sheet that bursts open (`vfx-textures.md`), Lifetime 0.075-0.15, EmitCount 2-6, as a colour layer (`ZOffset` z), its black twin (the same size, life and count, z to z + 0.25) and a white copy (z + 1) |
 | +0.03 s | Black backing | A soft black blob behind, 2-4R |
 | +0.05 s | Streaks | `VelocityParallel` with `Squash`, Speed 60-200, Drag 8-12, with a few black twins |
 | +0.05 s | Ring | A flat `VelocityPerpendicular` ring (Speed 0.001) growing to 2-3R over 0.2-0.4 s |
