@@ -401,19 +401,15 @@ capture instead of caught in passing.
      "code": "_G.vfx = require(game.ReplicatedStorage.VFX.Emit).play(game.ReplicatedStorage.VFX.Slam, CFrame.new(0, 3, 0))",
      "times": [0.03, 0.1, 0.25, 0.45, 0.9] } }
    ```
-   Roqer aims the camera, starts the effect and holds it while its textures
-   load (a texture shown for the first time, such as one just uploaded,
-   takes a moment), then plays it at normal speed, slows down for the last
-   stretch before each time, holds it there, captures the viewport, and
-   returns the frames tiled into one image, two to a row at half width, then
-   stops the effect. The result says when textures were still loading; only
-   then capture again.
+   Roqer aims the camera, waits for the textures, holds the effect at each
+   time and captures it, returns the frames tiled two to a row at half width,
+   stops the effect and checks the frames' colour. Capture again only when
+   the result says textures were still loading.
    A sheet of up to eight frames costs about what two full frames do. Pick
    the 4-6 moments that matter: anticipation, the flash, the peak, the body
    at about 0.3 s, the smoke, and a time just past the effect's end, to see
-   that nothing is left behind. Every call re-reads the whole
-   conversation, so one call for all the moments is far cheaper than a call
-   for each.
+   that nothing is left behind. One call for all the moments is far cheaper
+   than a call for each: every call re-reads the conversation.
    - **Detail and the final look:** a frame on a sheet is half as wide as a
      full frame. When small detail matters (a texture's edges, a thin trail,
      the missiles in flight), and for the final look from the player's camera
@@ -440,8 +436,9 @@ capture instead of caught in passing.
      (vfx-design.md section 1)? Does it grow taller for a moment, or stay a
      flat splash on the floor? At 0.3 s, is a body (crescents, tongues,
      puffs) still carrying the mass, or only shards and sparks?
-   - Is every layer meant to glow above the place's bloom threshold? A
-     Brightness of 1-3 reads as flat paint at Threshold 2.
+   - Do the sharp shapes glow above the bloom threshold while soft glows
+     stay dim? A soft glow above it is a white haze; a shape at Brightness 1-3
+     is flat paint at Threshold 2. Is the colour check washed out?
    - Does the flash frame read as one sharp, overexposed shape, bigger than
      what follows it, and is it gone by 0.15 s, so the frames after it show
      the body? A 30-stud flash that held for 0.2 s without fading whited out

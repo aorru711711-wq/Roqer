@@ -79,7 +79,7 @@ function channels(order: PixelOrder): readonly [number, number, number] {
 }
 
 /** The per-pixel median of a few frames, RGB, as the background. */
-function medianBackground(frames: readonly AnalysisFrame[], order: PixelOrder): Float32Array {
+export function medianBackground(frames: readonly AnalysisFrame[], order: PixelOrder): Float32Array {
   const [ri, gi, bi] = channels(order);
   const count = frames[0].width * frames[0].height;
   const background = new Float32Array(count * 3);

@@ -466,3 +466,50 @@ test("a live capture says when the textures were still loading, or when there wa
   await captureMoments({ code: "cast()", times: [0.2], runtime: "client", live: true }, {}, studio);
   assert.deepEqual(calls[1]?.args, { capture_id: "rbxtemp://7" });
 });
+
+/** Frames of a bright scene in which a disc of `color` moves across, as Electron's BGRA bitmaps, keyed by the fake images' data. */
+function sceneFrames(color: readonly [number, number, number], count: number) {
+  const width = 48;
+  const height = 32;
+  const frames = new Map<string, { time: number; width: number; height: number; pixels: Uint8Array }>();
+  for (let index = 0; index < count; index++) {
+    const pixels = new Uint8Array(width * height * 4);
+    for (let y = 0; y < height; y++) {
+      for (let x = 0; x < width; x++) {
+        const inside = index > 0 && index < count - 1 && Math.hypot(x - (8 + index * 7), y - 16) <= 6;
+        const [r, g, b] = inside ? color : [160, 166, 176];
+        pixels.set([b, g, r, 255], (y * width + x) * 4);
+      }
+    }
+    frames.set(`image-${index + 1}`, { time: 0, width, height, pixels });
+  }
+  return frames;
+}
+
+test("the frames get a colour check: a washed-out effect is told why it reads cheap, a deep one only gets its numbers", async () => {
+  const times = [0.1, 0.2, 0.3, 0.4, 0.5, 0.6];
+  const pale = sceneFrames([250, 205, 245], times.length);
+  const washed = await captureMoments({ code: "_G.vfx = start()", times }, {}, fakeStudio().studio, undefined, undefined, async (picture) => pale.get(picture.data));
+  assert.match(washed.text, /Colour check \(the 3 frames where the effect is largest, against the frames' own background\): of the effect's pixels, \d+% are pale \(white or pastel\)/);
+  assert.match(washed.text, /it is washed out, and that reads as cheap\./);
+  assert.ok(washed.text.indexOf("Colour check") > washed.text.indexOf("- 0.6 s"), "after the moments");
+  assert.ok(((washed.data as { tone?: { pale: number } }).tone?.pale ?? 0) > 0.9);
+
+  const violet = sceneFrames([70, 10, 120], times.length);
+  const deep = await captureMoments({ code: "_G.vfx = start()", times }, {}, fakeStudio().studio, undefined, undefined, async (picture) => violet.get(picture.data));
+  assert.match(deep.text, /Colour check/);
+  assert.doesNotMatch(deep.text, /washed out|Too much is pure white/);
+});
+
+test("no colour check without a frame reader, with a frame that does not decode, or with too few frames", async () => {
+  const times = [0.1, 0.2, 0.3, 0.4];
+  const frames = sceneFrames([250, 205, 245], times.length);
+  const none = await captureMoments({ code: "_G.vfx = start()", times }, {}, fakeStudio().studio);
+  assert.doesNotMatch(none.text, /Colour check/);
+  const broken = await captureMoments({ code: "_G.vfx = start()", times }, {}, fakeStudio().studio, undefined, undefined,
+    async (picture) => (picture.data === "image-2" ? undefined : frames.get(picture.data)));
+  assert.doesNotMatch(broken.text, /Colour check/);
+  const two = await captureMoments({ code: "_G.vfx = start()", times: [0.1, 0.2] }, {}, fakeStudio().studio, undefined, undefined, async (picture) => frames.get(picture.data));
+  assert.doesNotMatch(two.text, /Colour check/);
+  assert.equal((two.data as { tone?: unknown }).tone, undefined);
+});

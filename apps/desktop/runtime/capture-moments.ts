@@ -1,10 +1,11 @@
 import { CAPTURE_MOMENTS_OPERATION, MAX_CAPTURE_MOMENTS } from "../shared/gateway-operations";
 import { timeoutForTool } from "../shared/mcp-tools";
 import { isClipId } from "../shared/reference-clip";
-import type { CropBox } from "./clip-analysis";
+import type { AnalysisFrame, CropBox } from "./clip-analysis";
 import type { ClipManifest } from "./clip-store";
 import type { StudioCaller } from "./local-operations";
 import type { McpCallOptions, McpToolImage, McpToolOutcome } from "./mcp-types";
+import { describeEffectTone, measureEffectTone, type EffectTone } from "./effect-tone";
 import { frameEffectTime, missingClip, nearestFrame, type ChatClips } from "./reference-clip";
 import { frameLabel } from "./sheet-labels";
 
@@ -170,6 +171,21 @@ export type ContactSheet = (
   columns: number,
   options?: Readonly<{ crops?: readonly (CropBox | undefined)[]; labels?: readonly string[]; wide?: boolean }>,
 ) => Promise<McpToolImage | undefined>;
+
+/**
+ * One captured frame as small raw pixels (Electron's BGRA), for the colour
+ * check, or undefined when it does not decode. The host supplies it, since
+ * decoding images needs Electron; without one there is no colour check.
+ */
+export type FrameReader = (image: McpToolImage) => Promise<AnalysisFrame | undefined>;
+
+/** The effect's colour across the frames, when every frame decodes and it can be told. */
+async function effectTone(images: readonly McpToolImage[], readFrame: FrameReader | undefined): Promise<EffectTone | undefined> {
+  if (readFrame === undefined) return undefined;
+  const frames = await Promise.all(images.map((image) => readFrame(image).catch(() => undefined)));
+  if (frames.some((frame) => frame === undefined)) return undefined;
+  return measureEffectTone(frames as AnalysisFrame[], "bgra");
+}
 
 /** Frames to a row on a contact sheet: two show each frame at half the width it would have sent alone (1000 pixels on a wide viewport). */
 const SHEET_COLUMNS = 2;
@@ -554,6 +570,7 @@ type Captured = Readonly<{
   manifest?: ClipManifest;
   references?: ChatClips;
   contactSheet?: ContactSheet;
+  readFrame?: FrameReader;
   moments: readonly Moment[];
   images: readonly McpToolImage[];
   started: number;
@@ -567,9 +584,13 @@ type Captured = Readonly<{
   data?: Readonly<Record<string, unknown>>;
 }>;
 
+const round3 = (value: number) => Math.round(value * 1000) / 1000;
+
 /** The frames tiled, or paired with a reference clip, and the text that says which is which. */
 async function deliver(captured: Captured): Promise<McpToolOutcome> {
   const { parsed, manifest, references, contactSheet, moments, images, started } = captured;
+  // Measured on Studio's own frames, before any tiling or pairing with a clip.
+  const tone = await effectTone(images, captured.readFrame);
   // A sheet of up to eight frames costs the model about what two frames do, so the frames go as one unless asked otherwise.
   let delivered = images;
   let tiled = false;
@@ -616,12 +637,18 @@ async function deliver(captured: Captured): Promise<McpToolOutcome> {
     ...captured.notes,
     ...(pairingNote === undefined ? [] : [pairingNote]),
     ...lines,
+    ...(tone === undefined ? [] : describeEffectTone(tone)),
     ...captured.footer,
   ].join("\n");
   if (images.length === 0) return failure(text, started);
   return {
     ok: captured.ok,
-    data: { moments, ...captured.data, ...(paired === undefined ? {} : { comparedWith: manifest!.id }) },
+    data: {
+      moments,
+      ...captured.data,
+      ...(paired === undefined ? {} : { comparedWith: manifest!.id }),
+      ...(tone === undefined ? {} : { tone: { pale: round3(tone.pale), vivid: round3(tone.vivid), deep: round3(tone.deep), blown: round3(tone.blown) } }),
+    },
     text,
     images: delivered,
     httpStatus: 200,
@@ -636,6 +663,7 @@ export async function captureMoments(
   studio: StudioCaller,
   contactSheet?: ContactSheet,
   references?: ChatClips,
+  readFrame?: FrameReader,
 ): Promise<McpToolOutcome> {
   const started = Date.now();
   const parsed = parseCaptureMoments(args);
@@ -666,7 +694,7 @@ export async function captureMoments(
 
   if (parsed.live === true) {
     const captured = await captureLive(parsed, options, studio, run);
-    return typeof captured === "string" ? failure(captured, started) : deliver({ ...captured, parsed, manifest, references, contactSheet, started });
+    return typeof captured === "string" ? failure(captured, started) : deliver({ ...captured, parsed, manifest, references, contactSheet, readFrame, started });
   }
 
   const start = await run(parsed.code);
@@ -751,7 +779,7 @@ export async function captureMoments(
     ? `_G.${parsed.handle}'s clock kept running while it was held: its setTimeScale(0) does not stop its time field. The effect played on through each capture (about ${perShot.toFixed(1)} s each), so every frame shows it later than asked, and each moment after the first is reached about that much late, as the times below say. To see the times asked for, pass live: true, store a handle whose setTimeScale(0) stops both its time and what it draws, as the emit module's does, or capture one moment per call.`
     : undefined;
   return deliver({
-    parsed, manifest, references, contactSheet, moments, images, started,
+    parsed, manifest, references, contactSheet, readFrame, moments, images, started,
     how: `, ${how}`,
     notes: [
       ...(ranOn === undefined ? [] : [ranOn]),

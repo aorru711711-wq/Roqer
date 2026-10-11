@@ -87,7 +87,7 @@ import { BridgeLog } from "../runtime/bridge-log";
 import { composeDiagnostics } from "../runtime/diagnostics";
 import { AttachmentRegistry, MAX_IMAGE_SOURCE_BYTES } from "../runtime/attachment-context";
 import {
-  clipAnalysisFrame, clipThumbnail, composeClipSheet, composeContactSheet, encodeAttachmentImage, previewToolImage,
+  captureToneFrame, clipAnalysisFrame, clipThumbnail, composeClipSheet, composeContactSheet, encodeAttachmentImage, previewToolImage,
 } from "./image-encoder";
 import { ClipDecoder } from "./clip-decoder";
 import { clipScope, ClipStore } from "../runtime/clip-store";
@@ -1949,7 +1949,7 @@ async function startRun(event: IpcMainInvokeEvent, payload: unknown): Promise<Ru
     const session = new RunSession({
       caller: withLocalOperations(client, new Map<string, LocalOperation>([
         [CAPTURE_MOMENTS_OPERATION, (args, options, studio) => captureMoments(
-          args, options, studio, composeContactSheet, clips ? chatClips(request.chatId) : undefined,
+          args, options, studio, composeContactSheet, clips ? chatClips(request.chatId) : undefined, captureToneFrame,
         )],
         [UPLOAD_ASSETS_OPERATION, uploadAssets],
         // Resolved the same way the run's Studio is: `resolvedRequest.instanceId`

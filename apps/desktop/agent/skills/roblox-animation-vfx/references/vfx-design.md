@@ -13,18 +13,10 @@ held forms in `vfx-motion.md`; camera, screen and world reactions in
 Depart from it when the effect calls for it.
 
 How far to trust a number:
-- *(measured)*: from three studies of published effects and textures by
-  experienced Roblox VFX artists.
-  - The first covered 22 effects: 3,950 particle emitters, their scripts and
-    videos of them playing.
-  - The second covered 27 effects: skills, showcases, practice pieces and a
-    hand-drawn texture set, plus a tutorial by the artist snaliel.
-  - A third looked at every texture in a widely shared community particle
-    kit: 1,108 textures sorted into shines, sparkles, shapes, rings,
-    symbols, beams and trails, fogs and nature.
-  - A fourth measured the 1,215 textures behind 4,950 particle emitters.
-  - A fifth re-read the effects and videos for explosions and smoke
-    (`vfx-explosions.md`).
+- *(measured)*: from studies of published effects by experienced Roblox VFX
+  artists: 49 effects (5,010 particle emitters and 1,215 of their textures),
+  their videos, a hand-drawn texture set, a 1,108-texture community kit and a
+  tutorial by the artist snaliel.
 - *(verified)*: checked in Studio.
 - *(starting point)*: common practice; tune it by looking.
 
@@ -244,8 +236,14 @@ How one orange shape renders under a new place's lighting *(verified)*:
   Fire bodies sit near Brightness 5 at `LightEmission` 0-0.5; two studied
   pieces push them to 25-100 at -1 to -5.
 - **Glows and halos:** `LightEmission` 1 at Brightness 1-6, often below 1.
-  Their job is the bloom around a shape. Four-point flares run at 5-12
-  *(measured)*.
+  Soft ones are about two-thirds transparent: the sharp shapes carry the
+  brightness (median 4), the glow only blooms around them. Four-point flares
+  run at 5-12 *(measured)*.
+- **Colour in daylight is solid.** Additive layers only lighten what is
+  behind them: over a bright sky violet goes pastel, then white. 58% of
+  studied saturated layers are solid (`LightEmission` 0.3 or less); additive
+  is for thin highlights and small glows. A mostly additive magic run came
+  back 74-85% pale, studied videos 2-21% *(measured)*.
 - **Glow-first is a different style.** One studied artist ran `LightEmission`
   1 on more than half the layers, with fractional values as a mixing dial and
   colour-correction frames on top. It works in a dark scene.

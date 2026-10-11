@@ -253,6 +253,18 @@ export async function clipAnalysisFrame(jpeg: Buffer, time: number): Promise<Ana
   return { time, width, height, pixels: new Uint8Array(small.toBitmap()) };
 }
 
+/** The long side of a captured frame measured for an effect's colour: the size the check was calibrated at. */
+const TONE_EDGE = 320;
+
+/** A frame `capture_moments` took, as small raw pixels for its colour check, or undefined when it does not decode. */
+export async function captureToneFrame(image: McpToolImage): Promise<AnalysisFrame | undefined> {
+  const source = nativeImage.createFromBuffer(Buffer.from(image.data, "base64"));
+  if (source.isEmpty()) return undefined;
+  const small = scaled(source, TONE_EDGE);
+  const { width, height } = small.getSize();
+  return { time: 0, width, height, pixels: new Uint8Array(small.toBitmap()) };
+}
+
 /**
  * The preview kept with image evidence: a screenshot or a Blender preview,
  * scaled down and re-encoded as JPEG so it fits the saved-record bound.

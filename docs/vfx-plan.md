@@ -1595,6 +1595,88 @@ in a solo playtest.
 - **The guidance and the operation's description** say a frame takes about
   0.35 s to finish, so live times are spaced that far apart.
 
+## Sixth study: why our effects read cheaper than artists'
+
+A magic-missile brief asked for "deep violet and magenta with sharp white
+highlights, not soft or bubbly". The user found the result cheap next to the
+artists' work, "crisp and high quality", without being able to say why.
+
+### Method
+
+- The run's frames were measured against the eight artist videos in the
+  dump, and against the fireball run's frames from the same bright test
+  place.
+- Every frame was scaled to 320 pixels wide. The effect is what differs from
+  the frames' per-pixel median by more than 0.12. Measurement used the
+  busiest third of the frames.
+- Each effect pixel was sorted as one of:
+  - pale: bright and nearly grey (max above 0.6, saturation under 0.35);
+  - vivid: bright and saturated (above 0.5, saturation 0.5 or more);
+  - deep: darker and saturated (0.5 or less, saturation 0.4 or more);
+  - blown out: every channel above 0.9.
+- The 5,010 studied emitters were then re-read for how brightness and
+  blending divide between soft glows, sharp shapes and white layers.
+
+### Findings
+
+| | Pale | Vivid or deep | Blown out |
+| --- | --- | --- | --- |
+| The magic-missile run | 74-85% | 3-6% | 15-24% |
+| Eight artist videos | 2-21% | 35-90% | 0-9% |
+| The fireball run, same place | 8-17% | 17-25% | 0% |
+
+- **The colour washed out.** Additive layers only lighten what is behind
+  them, so over a bright sky violet goes pastel, then white.
+  - The artist videos are shot in darker scenes (background value
+    0.04-0.44, against 0.63-0.68 here). The fireball in the same place is
+    the control: it stayed saturated.
+  - 58% of the studied saturated layers are solid (`LightEmission` 0.3 or
+    less, 11% of them negative). 35% are additive.
+- **Soft glows are dim; sharp shapes carry the brightness.**
+  - The 93 studied soft additive glows have a median Brightness of 1 and
+    are about two-thirds transparent at their most solid.
+  - The 508 crisp additive shapes have a median Brightness of 4 and are
+    opaque.
+  - White layers sit at Brightness 1 (median, 90% at 3 or less).
+  - The artist's own Magic Missiles makes its white core a separate solid
+    white layer (`LightEmission` 0, Brightness 1). Its soft glow is 86-96%
+    transparent, its shapes are 0.7-3.7 studs, and its textures cover 1-13%
+    of their canvas.
+- **Not the cause:**
+  - Fine detail: the run had as many small bright marks per frame as the
+    videos.
+  - The flash: the studied flashes reach a median of 15 studs at
+    Brightness 10, which the recipe matches.
+  - The places' bloom: mostly Threshold 2 and Intensity 1-2, as a new place
+    has.
+- **The textures read as clip art** (not measured): a perfect four-point
+  star, perfect rings, a pentagram, and Latin letters as runes. The artist's
+  set is a flash with bent arms, a shard tumbling across an 8x8 sheet, thin
+  streaks and dots. The guidance already warns about this.
+
+### What changed
+
+- **`runtime/effect-tone.ts`:** measures the shares from a capture's frames,
+  with the clip analysis's background and change threshold. `capture_moments`
+  reports them after every capture of three or more frames, with advice when
+  the effect is washed out (over 40% pale) or blown out (over 12%).
+  - The host decodes each frame at 320 pixels (`captureToneFrame`).
+  - Frames a moving camera changes everywhere are left out.
+  - Run on the real frames, it flags the magic run (both warnings) and
+    passes the fireball and the artist videos.
+- **`vfx-design.md`:**
+  - Colour in daylight is solid.
+  - Soft glows are about two-thirds transparent; the sharp shapes carry the
+    brightness.
+  - The study list is shorter, to keep the core pair inside one call
+    (47,780 of 48,000 characters).
+- **`vfx-craft.md`:**
+  - The bloom check no longer asks for every layer above the threshold: only
+    sharp shapes go above it, and soft glows stay dim.
+  - The capture step mentions the colour check, in fewer words.
+- **Left:** a texture check for clip-art symmetry. Sigils and rings are
+  rightly symmetric, so a plain symmetry test would flag them too.
+
 ## Deferred, and why
 
 - **Runtime EditableMesh/EditableImage effects** (UV scrolling on meshes,
