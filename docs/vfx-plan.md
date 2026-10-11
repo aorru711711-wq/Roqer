@@ -1440,6 +1440,68 @@ The user called it better. The impact-star sheet still looked weird.
   - An explosion's route still arrives in two calls; its second call is
     47,623 of 48,000 characters.
 
+### After the second fireball run
+
+The user called it "starting to look better":
+- the fire is a boiling mass that breaks up, not a scaled image;
+- the smoke is a grey, see-through cloud;
+- no sheet held a shape (its smoke sheet moved a median 25-28% a frame);
+- nothing was left behind.
+
+**What still looked off:**
+- **The last fire pieces read as paper cut-outs.** At 0.6 s they were large,
+  hard-edged and one flat red-orange, measured at about `#e25b27` in the
+  capture. That is close to what the FireBody example gives at the end of its
+  life: its last Colour at Brightness 5 on the fire-burst sheet's plain body
+  value comes to `#ff5424`. Rendered with the example's Colour at Brightness
+  5, the sheet showed the cause: once its hot heart shrank, every later frame
+  was one value, so one flat tone with a sharp edge. In the videos that
+  moment is a charred core whose edges glow.
+- **The playtest captures came late.** Asked for 0.6, 0.72, 0.8 and 1.3 s,
+  `capture_moments` returned frames at 1.23, 1.42, 1.93 and 2.37 s. Each
+  call's first moment was on time, then every later one was about a
+  capture's length late (about 0.9 s in a playtest). The run held a clock of
+  its own whose `setTimeScale(0)` did not stop it. The tool read the clock
+  before each screenshot, never checked that holding worked, and still said
+  each frame was "held still". So the in-game check never saw the fire at its
+  peak.
+
+**What changed:**
+- **`vfx-explosions.md`:**
+  - The fire-burst example's value now falls with time:
+    1. white-hot;
+    2. yellow, then orange;
+    3. a centre that chars to about 0.05;
+    4. edges that glow (0.35) in places and soften as it breaks up.
+  - At Brightness 5 only a value under about 0.1 reads dark, which the guide
+    now says.
+  - Its check asks for a charred centre with red edges rather than one flat
+    orange.
+- **`runtime/capture-moments.ts`:**
+  - After holding, the clock is read again two frames later. A clock that
+    moved is reported: the result names the handle and the time each capture
+    took, and says frames came out late.
+  - A moment reached more than 0.05 s past its time says how late it is.
+  - "Held still" is said only when the clock held.
+  - A late frame is paired with the reference clip where the effect really
+    was.
+- **`vfx-craft.md` and the operation's description:** a handle's
+  `setTimeScale(0)` must stop both its time and what it draws.
+- **Checks:**
+  - The example was run as printed with the helpers in numpy outside
+    Blender. It still moves a median 30% a frame, and the real sheet check
+    passes it.
+  - An explosion's route still arrives in two calls. Its second call is
+    47,956 of 48,000 characters, so the next addition to that route needs a
+    matching cut.
+- **Not fixed:**
+  - Effects a game plays by itself in a playtest still cannot be held. Their
+    moments are now reported late rather than mislabelled. Capturing inside
+    the client and reading the images afterwards would make them accurate;
+    that needs a capture tool that can begin a capture without reading it.
+  - `capture_screenshot` takes no `target`, so with `target: "client-2"` the
+    code runs on client 2 but the frame is client 1's.
+
 ## Deferred, and why
 
 - **Runtime EditableMesh/EditableImage effects** (UV scrolling on meshes,

@@ -68,7 +68,25 @@ const HANDLE_NAME = /^[A-Za-z_][A-Za-z0-9_]{0,40}$/;
  */
 const PRELOAD_SECONDS = 10;
 
-type Moment = { requested: number; reached?: number; short?: "ended" | "waited"; image?: number; note?: string };
+/**
+ * Effect seconds past its time a moment may be captured at before it is
+ * called late. A held approach overshoots by a frame at the slow speed, a few
+ * milliseconds; a clock that runs on through a capture overshoots by the
+ * capture's own length, about a second in a playtest.
+ */
+const LATE_SECONDS = 0.05;
+
+type Moment = {
+  requested: number;
+  reached?: number;
+  short?: "ended" | "waited";
+  /** Effect seconds past `requested` it was captured at, when over `LATE_SECONDS`. */
+  late?: number;
+  /** False when the handle's clock went on running after it was held. */
+  held?: false;
+  image?: number;
+  note?: string;
+};
 
 /** Where to aim the edit camera before the effect starts, as `selection` view takes it. */
 export type CaptureView = Readonly<{ path: string; from?: number; angleY?: number; padding?: number }>;
@@ -203,7 +221,10 @@ export function preloadLuau(handle: string): string {
  * Luau that plays the effect on to `time`, at normal speed until the last
  * stretch and at `slow` for it, holds it there when asked, and says where it
  * got to and why it stopped: "done", "stalled" (the clock stood still, so the
- * effect has ended) or "capped" (this call's wait ran out first).
+ * effect has ended) or "capped" (this call's wait ran out first). A held
+ * effect's clock is read again two frames later: "runs" when it moved, so
+ * the handle's setTimeScale(0) does not stop it and the capture that follows
+ * lands late.
  */
 export function momentLuau(handle: string, time: number, slow: number, hold: boolean): string {
   const trail = Math.min(TRAIL_APPROACH_SECONDS, slow * MAX_WAIT_SECONDS);
@@ -230,7 +251,12 @@ export function momentLuau(handle: string, time: number, slow: number, hold: boo
     `playTo(target, ${slow})`,
     ...(hold ? ["scale(0)"] : []),
     `local status = clock() >= target and "done" or ((h.finished == true or os.clock() - moved >= ${STALLED_SECONDS}) and "stalled" or "capped")`,
-    `return string.format("%.3f|%s", clock(), status)`,
+    "local reached = clock()",
+    // Two frames, so a clock stepped before or after this thread resumes is seen either way.
+    ...(hold
+      ? [`local holding = "held"`, `if h.finished ~= true then task.wait() task.wait() if clock() ~= reached then holding = "runs" end end`]
+      : [`local holding = "playing"`]),
+    `return string.format("%.3f|%s|%s", reached, status, holding)`,
   ].join("\n");
 }
 
@@ -280,7 +306,8 @@ async function pairWithReference(
   const lines = new Map<Moment, string>();
   for (const moment of moments) {
     if (moment.image === undefined) continue;
-    const at = parsed.reference.times?.[parsed.times.indexOf(moment.requested)] ?? moment.requested;
+    // A late frame is paired with the clip where the effect really was.
+    const at = (parsed.reference.times?.[parsed.times.indexOf(moment.requested)] ?? moment.requested) + (moment.late ?? 0);
     const index = nearestFrame(manifest, at);
     const clipTime = frameEffectTime(manifest, index);
     // A time past either end of the clip shows its nearest frame, and says so.
@@ -351,6 +378,7 @@ export async function captureMoments(
   const moments: Moment[] = [];
   const images: McpToolImage[] = [];
   const skipped: number[] = [];
+  const shotSeconds: number[] = [];
   let stopped: string | undefined;
   try {
     for (const time of parsed.times) {
@@ -363,12 +391,14 @@ export async function captureMoments(
       moments.push(moment);
       // A wait that ran out of its call's budget carries on in another call, up to a limit.
       let reply = "";
+      let status = "";
       let failed: McpToolOutcome | undefined;
       for (let attempt = 0; attempt < MAX_WAITS_PER_MOMENT; attempt++) {
         const step = await run(momentLuau(parsed.handle, time, parsed.slow, parsed.hold));
         reply = returned(step).trim();
+        status = reply.split("|")[1] ?? "";
         if (!step.ok) failed = step;
-        if (!step.ok || !reply.endsWith("|capped") || !canWait()) break;
+        if (!step.ok || status !== "capped" || !canWait()) break;
       }
       if (failed !== undefined || reply === "no-handle") {
         stopped = failed !== undefined
@@ -376,13 +406,18 @@ export async function captureMoments(
           : `_G.${parsed.handle} is not a handle with setTimeScale after the code ran; store the effect's handle there.`;
         break;
       }
-      const value = Number(reply.split("|")[0]);
+      const [reachedText, , holding] = reply.split("|");
+      const value = Number(reachedText);
       if (Number.isFinite(value) && value >= 0) {
         moment.reached = value;
         // A handle whose clock stopped, or that the waits outran, is captured anyway, and said so.
-        if (value + 0.005 < time) moment.short = reply.endsWith("|capped") ? "waited" : "ended";
+        if (value + 0.005 < time) moment.short = status === "capped" ? "waited" : "ended";
+        // So is one whose clock was already past the time: it ran on through the capture before.
+        if (value - time > LATE_SECONDS) moment.late = Math.round((value - time) * 1000) / 1000;
       }
+      if (holding === "runs") moment.held = false;
       const shot = await studio("capture_screenshot", {}, { signal: options.signal, timeoutMs: timeoutForTool("capture_screenshot") });
+      shotSeconds.push(shot.durationMs / 1000);
       const image = shot.ok ? shot.images?.[0] : undefined;
       if (image === undefined) {
         moment.note = `capture failed: ${shot.message ?? shot.text}`.slice(0, 300);
@@ -424,13 +459,23 @@ export async function captureMoments(
       ? ` (the clock stopped short of ${moment.requested} s: the effect had ended)`
       : moment.short === "waited"
         ? ` (still short of ${moment.requested} s when the waiting ran out)`
-        : "";
+        : moment.late !== undefined
+          ? ` (${moment.late.toFixed(2)} s late)`
+          : "";
     const picture = moment.image === undefined
       ? moment.note ?? "not captured"
       : paired?.get(moment) ?? `${tiled ? "frame" : "image"} ${moment.image}`;
     return `- ${moment.requested} s${at}${short}: ${picture}`;
   });
-  const how = parsed.hold ? "held still for each capture" : `kept playing at ${parsed.slow}x through each capture, so a frame may run a little past its time`;
+  const runOn = moments.some((moment) => moment.held === false);
+  const how = !parsed.hold
+    ? `kept playing at ${parsed.slow}x through each capture, so a frame may run a little past its time`
+    : runOn ? "meant to be held still for each capture" : "held still for each capture";
+  // A clock that runs on through every capture reaches each later moment a capture's length late.
+  const perShot = shotSeconds.length === 0 ? 0 : [...shotSeconds].sort((a, b) => a - b)[Math.floor(shotSeconds.length / 2)] as number;
+  const ranOn = runOn
+    ? `_G.${parsed.handle}'s clock kept running while it was held: its setTimeScale(0) does not stop its time field. The effect played on through each capture (about ${perShot.toFixed(1)} s each), so every frame shows it later than asked, and each moment after the first is reached about that much late, as the times below say. To see the times asked for, store a handle whose setTimeScale(0) stops both its time and what it draws, as the emit module's does, or capture one moment per call.`
+    : undefined;
   const layout = paired !== undefined
     ? `Each moment is paired with reference clip ${manifest!.id} in one image, two pairs to a row, left to right then top to bottom: the clip's frame at the matching time (labelled R${manifest!.analysis.crop === undefined ? "" : ", cropped to where the clip changes"}), then Studio's (labelled S), each label carrying the pair's number and time. Compare each pair for when it starts, peaks and fades, its size against the frame, its colours and its shape; the clip was filmed from its own camera, so compare proportions rather than position.`
     : tiled
@@ -438,6 +483,7 @@ export async function captureMoments(
       : "The images follow in this order:";
   const text = [
     `Captured ${images.length} of ${parsed.times.length} moments, ${how}. ${layout}`,
+    ...(ranOn === undefined ? [] : [ranOn]),
     ...(pairingNote === undefined ? [] : [pairingNote]),
     ...(stillLoading ? [`Its textures were still loading after ${PRELOAD_SECONDS} s, so early frames may be missing layers; if they are, capture again.`] : []),
     ...lines,

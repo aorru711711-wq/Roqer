@@ -427,7 +427,9 @@ capture instead of caught in passing.
    - **On a character in a playtest:** pass `"runtime": "client"`; the code
      runs in the client, and the frames are the player's view.
    - **Your own module's handle** works too, if it has a `time` field in effect
-     seconds and `setTimeScale(scale)`.
+     seconds and `setTimeScale(scale)` whose 0 stops both `time` and what it
+     draws. A clock read from `os.clock()` cannot hold: a playtest capture
+     takes about a second, so later moments land late, and the result says so.
 4. Make a second `capture_moments` call with the other view (step 2) and the
    same times: two calls for both views, never a call per moment.
 5. Ask of each capture:

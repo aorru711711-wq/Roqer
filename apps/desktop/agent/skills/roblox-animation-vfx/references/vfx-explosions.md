@@ -2,10 +2,9 @@
 
 Load this with `vfx-design.md` and `vfx-craft.md` for any explosion, fireball,
 blast, burning or smoke. It fills in the impact skeleton in `vfx-craft.md`
-section 4. *(measured)* marks numbers from the same published effects as the
-other references, read again for fire and smoke: 5,010 particle emitters,
-1,427 textures, and 6 explosion videos stepped frame by frame. None of it was
-checked in Studio.
+section 4. *(measured)* marks numbers from the studied effects, read again
+for fire and smoke: 5,010 particle emitters, 1,427 textures and 6 explosion
+videos stepped frame by frame. None of it was checked in Studio.
 
 ## 1. The mass is a flipbook
 
@@ -55,9 +54,8 @@ A studied fireball boils by overlap: three drawn 4x4 flame sheets stream at
 `Rate` 55-90, Speed 225-380, Drag 3-4, each particle easing out at a random
 angle for 0.35-0.75 s.
 
-A fire-body layer for a hit with R about 5. Its delays match the
-`vfx-craft.md` examples, whose flash fires at 0.14 s. Set `Texture` to your
-fire-burst sheet; it is left out because no built-in is a sheet:
+A fire-body layer for a hit with R about 5, timed to the `vfx-craft.md` flash
+at 0.14 s. Set `Texture` to your fire-burst sheet (no built-in is a sheet):
 
 ```json
 {
@@ -91,9 +89,9 @@ it by up to 1 s in a hit, 2-11 s in a slam *(measured)*. Three ways:
   for 8, dark smoke for 16, then wisps.
 
 **The burn-out** is the charcoal core the fire leaves, with glowing cracks.
-In the videos it is the darkest moment, it lasts 0.1-0.3 s, and then it
-lightens toward the background as it thins. Put a burn-out sheet (section 6)
-just behind the fire body, so the fire covers it until the fire breaks up:
+In the videos it is the darkest moment, lasting 0.1-0.3 s before it thins and
+lightens. Put a burn-out sheet (section 6) just behind the fire body, so the
+fire covers it until it breaks up:
 
 ```json
 {
@@ -116,7 +114,7 @@ just behind the fire body, so the fire covers it until the fire breaks up:
 
 | Property | Measured |
 | --- | --- |
-| Lighting | `LightInfluence` 0 on 68%; 0.5 or more on 20%, over half of that one piece |
+| Lighting | `LightInfluence` 0 on 68%; 0.5 or more on 20%, mostly one piece |
 | Sheet | a flipbook on 71%, mostly 4x4 `OneShot` |
 | Value | about texture × Colour × Brightness; self-lit solid smoke has a median of 0.71 (0.34-1.2), mid to light grey |
 | Opacity | at its most solid, a median Transparency of 0.59 (0.26-0.79); 20% go below 0.2; 23% fade in |
@@ -129,14 +127,12 @@ just behind the fire body, so the fire covers it until the fire breaks up:
   `#3f3f3f` at Brightness 16 and 5 renders white and light grey. A fire
   ending at `#2b190c` with Brightness 15-65 is a glowing brown.
 - Copied at Brightness 1, both are black.
-- How Brightness combines with `LightInfluence` above 0 has not been
-  checked.
+- Brightness with `LightInfluence` above 0 is unchecked.
 
 **Dark smoke is a veil.**
 - 40 of the 320 layers are dark, with a median peak Transparency of 0.5,
   many at 0.8-0.92. They are usually paired with light smoke: one fire
   dragon runs 18 black layers beside 15 white ones.
-- One is dense, in an ink-styled piece.
 - Dense black that lingers is a ground crack, a sigil or linework.
 - In the videos, smoke darkens what is behind it by 0.05-0.2 in luminance.
 
@@ -169,24 +165,26 @@ Swap the stand-in for a smoke sheet with its flipbook settings:
 
 ## 6. Drawing the sheets
 
-A fire burst and a burn-out with the `roqer` helpers (`vfx-textures.md`).
-They were run with the helpers in numpy outside Blender (about 6 s), and
-checked tinted.
-- **Fire burst:** a white-hot puff grows by a third of the way, cools
-  through yellow and orange to red, and breaks into fragments.
+A fire burst and a burn-out with the `roqer` helpers (`vfx-textures.md`),
+checked tinted:
+- **Fire burst:** a white-hot puff grows by a third of the way and breaks
+  up. Its value falls: under the FireBody Colour it runs white, yellow,
+  orange, then chars inside while its edges glow red in places. At
+  Brightness 5 only a value under about 0.1 reads dark; one flat value stays
+  one flat orange, a paper cut-out.
 - **Burn-out:** mottled charcoal that swells, churns and lifts while its few
   cracks cool and it thins and tears.
 
-Neither holds a shape. Their outlines move a median 30% and 20% from frame to
-frame; studied sheets move about 40% (`vfx-textures.md`).
+Neither holds a shape: their outlines move a median 30% and 20% a frame,
+studied sheets about 40% (`vfx-textures.md`).
 
 ```python
 import numpy
 
 NOISE = roqer.tex_noise(256, scale=6, seed=1)
 
-# Fire burst: a lopsided body ringed with flickering tongues; grows, boils, burns through and
-# breaks up. Value: one hot heart (1) in a cooler body (0.55).
+# Fire burst: a lopsided body ringed with flickering tongues. Value: a hot heart (1) in a body
+# (0.55) that chars (0.05) while edges glow (0.35).
 RNG = numpy.random.default_rng(3)
 TONGUES = [(RNG.uniform(-0.6, 0.6) + (numpy.pi / 2 if i % 3 else RNG.uniform(0, 2 * numpy.pi)),   # most lick upward
             RNG.uniform(0.15, 0.4), RNG.uniform(0.07, 0.13), RNG.choice([-1, 1])) for i in range(11)]
@@ -195,11 +193,11 @@ RAG = roqer.tex_noise(256, scale=12, octaves=3, seed=4)
 
 def fire_burst(t, size):
     x, y = roqer.tex_coords(size)
-    wx, wy = roqer.tex_warp(x, y, amount=0.1, scale=4, seed=2, t=t * 1.6)       # drifts fast: boils
-    grow = roqer.tex_ease(t * 3)                                                # full size by a third
+    wx, wy = roqer.tex_warp(x, y, amount=0.1, scale=4, seed=2, t=t * 1.6)   # drifts fast: boils
+    grow = roqer.tex_ease(t * 3)   # full size by a third
     radius = 0.16 + 0.22 * grow
     body = roqer.tex_blob(wx, wy, radius=radius, lumps=9, roughness=0.75, seed=5)
-    for n, (angle, reach, width, curl) in enumerate(TONGUES):                   # uneven tongues that flicker
+    for n, (angle, reach, width, curl) in enumerate(TONGUES):   # uneven tongues that flicker
         base = (numpy.cos(angle) * radius * 0.7, numpy.sin(angle) * radius * 0.7)
         lick = reach * grow * (0.7 + 0.3 * numpy.sin(t * 19 + n * 2.3))
         tip = (base[0] + numpy.cos(angle) * lick, base[1] + numpy.sin(angle) * lick + 0.05 * t)
@@ -207,19 +205,24 @@ def fire_burst(t, size):
         path = roqer.tex_curve([base, bend, tip], 16)
         body = numpy.maximum(body, roqer.tex_stroke(wx, wy, path, [width * (1 - 0.5 * t), 0.0]))
     body = body + (roqer.tex_sample(RAG, wx * 0.5 + t * 0.2, wy * 0.5 - t * 0.5) - 0.5) * 0.08   # ragged rim
-    burn = roqer.tex_sample(CHURN, x * 0.6 + 0.3, y * 0.6 - t * 0.4) - max(0.0, t - 0.2) * 1.4 + 0.1    # holes from 20%
-    alpha = roqer.tex_edge(body, soft=0.008) * roqer.tex_edge(burn + body * 0.6, soft=0.02)
-    heat = roqer.tex_sample(CHURN, wx * 0.5 - t * 0.3, wy * 0.5 + t * 0.6) + body * 2.5 - 0.05 - t * 1.1   # shrinking heart
-    return alpha, 0.55 + 0.45 * roqer.tex_edge(heat, 0.5, soft=0.02)
+    burn = roqer.tex_sample(CHURN, x * 0.6 + 0.3, y * 0.6 - t * 0.4) - max(0.0, t - 0.2) * 1.4 + 0.1 + body * 0.6   # holes from 20%
+    cool = min(max((t - 0.2) / 0.4, 0.0), 1.0)   # hot to 20%, charred by 60%
+    alpha = roqer.tex_edge(body, soft=0.008 + 0.03 * cool) * roqer.tex_edge(burn, soft=0.02 + 0.06 * cool)
+    mottle = roqer.tex_sample(RAG, wx * 0.4 - t * 0.2, wy * 0.4 + t * 0.3) - 0.5
+    rim = (1 - roqer.tex_edge(numpy.minimum(body, burn / 3), 0.035 + mottle * 0.06, soft=0.015)) * roqer.tex_edge(mottle, -0.1, soft=0.1)
+    heat = roqer.tex_sample(CHURN, wx * 0.5 - t * 0.3, wy * 0.5 + t * 0.6) + body * 2.5 - 0.05 - t * 1.5   # shrinking heart
+    core = (0.55 + mottle * 0.3) * (1 - 0.9 * cool)
+    value = core + (0.7 - 0.35 * cool - core) * rim * cool   # edges glow, in places
+    return alpha * (1 - 0.3 * cool * (1 - rim)), numpy.maximum(value, roqer.tex_edge(heat, 0.5, soft=0.06))
 
-# Burn-out: mottled charcoal (value about 0.15) with thin cracks (1) that cool; it swells, lifts,
-# tears and thins. Under a warm Color at Brightness 2-3: charcoal with embers.
+# Burn-out: charcoal (value about 0.15) with thin cracks (1). Under a warm Color at Brightness
+# 2-3: charcoal with embers.
 RIDGES = roqer.tex_noise(256, scale=7, octaves=4, seed=12)
 MOTTLE = roqer.tex_noise(256, scale=8, octaves=4, seed=13)
 
 def burn_out(t, size):
     x, y = roqer.tex_coords(size)
-    wx, wy = roqer.tex_warp(x, y, amount=0.16, scale=4, seed=6, t=t * 2.2)        # churns as it rises
+    wx, wy = roqer.tex_warp(x, y, amount=0.16, scale=4, seed=6, t=t * 2.2)   # churns as it rises
     body = roqer.tex_blob(wx, wy - 0.15 * t, radius=0.3 + 0.25 * roqer.tex_ease(t * 1.5), lumps=10, roughness=0.8, seed=7)   # swells and lifts
     holes = roqer.tex_sample(NOISE, x * 0.5 + 0.1, y * 0.5 + t * 0.6) - t * 1.4 + 0.45
     alpha = roqer.tex_edge(body, soft=0.04) * roqer.tex_edge(holes + body * 0.3, soft=0.08) * (0.9 - 0.4 * t)
@@ -245,8 +248,8 @@ Store (`search_assets`).
 Add these to `vfx-craft.md` section 6:
 - At 0.1-0.3 s, is the body a boiling mass of overlapping sheets, or one
   image scaling up?
-- Does it cool from yellow-white to red and break up by about 0.5 s in a
-  hit?
+- Does it cool from yellow-white to a charred centre with red edges and
+  break up by about 0.5 s in a hit, or end as one flat orange?
 - Is the darkest moment the burn-out, gone within about 0.3 s?
 - Is any smoke darker than what is behind it by more than about 0.2 for
   longer than that, or dark and below Transparency 0.5?

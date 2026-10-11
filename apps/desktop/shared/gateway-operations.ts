@@ -43,7 +43,7 @@ export const GATEWAY_SCHEMAS: Readonly<Record<string, ToolSchema>> = {
   [CAPTURE_MOMENTS_OPERATION]: {
     description: "Use to see a playing effect at several moments in one call: aims the camera at view, runs code that starts it, waits for its textures, then holds it at each time and captures the viewport.",
     parameters: [
-      { name: "code", type: "string", required: true, minLength: 1, description: "Luau that starts the effect and stores its handle in a global, e.g. _G.vfx = require(game.ReplicatedStorage.VFX.Emit).play(template, cframe). The handle needs a time field (effect seconds) and setTimeScale(scale); stop() is called after the last capture when it has one." },
+      { name: "code", type: "string", required: true, minLength: 1, description: "Luau that starts the effect and stores its handle in a global, e.g. _G.vfx = require(game.ReplicatedStorage.VFX.Emit).play(template, cframe). The handle needs a time field (effect seconds) and setTimeScale(scale), whose 0 must stop both time and what it draws, or frames land late; stop() is called after the last capture when it has one." },
       { name: "times", type: "number[]", required: true, description: `Effect seconds to capture, ascending, 1-${MAX_CAPTURE_MOMENTS} of them.` },
       { name: "runtime", type: "string", required: false, enumValues: ["edit", "client"], defaultValue: "\"edit\"", description: "Where code runs: edit (the edit viewport) or client (a running playtest's client, whose camera is the player's view)." },
       { name: "target", type: "string", required: false, description: "Client peer when runtime is client; defaults to client-1." },

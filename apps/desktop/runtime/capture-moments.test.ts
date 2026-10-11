@@ -27,7 +27,7 @@ function fakeStudio(overrides: { start?: McpToolOutcome; reached?: (time: number
     if (code.includes("pcall(h.stop")) return ok({ returnValue: "stopped" });
     if (code.includes("PreloadAsync")) return ok({ returnValue: overrides.preload ?? "loaded" });
     const wanted = /local target = ([\d.]+)/.exec(code);
-    if (wanted) return ok({ returnValue: overrides.reached?.(Number(wanted[1])) ?? `${Number(wanted[1]).toFixed(3)}|done` });
+    if (wanted) return ok({ returnValue: overrides.reached?.(Number(wanted[1])) ?? `${Number(wanted[1]).toFixed(3)}|done|held` });
     return overrides.start ?? ok({ returnValue: "" });
   };
   return { studio, calls };
@@ -59,7 +59,12 @@ test("a moment travels at normal speed, slows for the last stretch, holds when a
   // A finished handle has restored what it changed; it is never scaled again.
   assert.match(held, /local function scale\(speed\) if h\.finished ~= true then h:setTimeScale\(speed\) end end/);
   assert.doesNotMatch(held.replace(/local function scale[^\n]*\n/, ""), /h:setTimeScale/);
+  // Two frames after holding, the clock is read again: a handle whose setTimeScale(0) does not stop it is caught.
+  assert.match(held, /local reached = clock\(\)\nlocal holding = "held"\nif h\.finished ~= true then task\.wait\(\) task\.wait\(\) if clock\(\) ~= reached then holding = "runs" end end/);
+  assert.match(held, /return string\.format\("%\.3f\|%s\|%s", reached, status, holding\)/);
   const trail = momentLuau("vfx", 1.2, 0.04, false);
+  assert.match(trail, /local holding = "playing"/);
+  assert.doesNotMatch(trail, /task\.wait\(\) task\.wait\(\)/);
   // A trail is drawn slowly for as much of its life as one wait covers: 20 s at 0.04x is 0.8 s.
   assert.match(trail, /playTo\(target - 0\.8, 1\)/);
   assert.doesNotMatch(trail, /scale\(0\)/);
@@ -79,6 +84,36 @@ test("one call starts the effect, captures every moment in order and stops it", 
   assert.match(String(calls.at(-1)?.args.code), /pcall\(h\.stop, h\)/);
   assert.match(outcome.text, /Captured 2 of 2 moments, held still/);
   assert.match(outcome.text, /- 0\.05 s, at 0\.050 s: image 1\n- 0\.3 s, at 0\.300 s: image 2/);
+});
+
+test("a clock that runs on while held is caught: its late moments say so, and nothing claims it held", async () => {
+  // A playtest run's own clock: setTimeScale did nothing, and each capture took about 0.9 s.
+  const clock = { now: 0 };
+  const { studio } = fakeStudio({
+    reached: (time) => {
+      clock.now = Math.max(clock.now, time + 0.013);
+      return `${clock.now.toFixed(3)}|done|runs`;
+    },
+    capture: (n) => {
+      clock.now += 0.9;
+      return ok({}, { images: [image(n)], durationMs: 900 });
+    },
+  });
+  const outcome = await captureMoments({ code: "_G.vfx = cast()", times: [0.22, 0.6, 0.8], runtime: "client" }, {}, studio);
+  assert.equal(outcome.ok, true, outcome.text);
+  assert.match(outcome.text, /^Captured 3 of 3 moments, meant to be held still for each capture\./);
+  assert.doesNotMatch(outcome.text, /, held still/);
+  assert.match(outcome.text, /_G\.vfx's clock kept running while it was held: its setTimeScale\(0\) does not stop its time field\. The effect played on through each capture \(about 0\.9 s each\)/);
+  assert.match(outcome.text, /- 0\.22 s, at 0\.233 s: image 1\n- 0\.6 s, at 1\.133 s \(0\.53 s late\): image 2\n- 0\.8 s, at 2\.033 s \(1\.23 s late\): image 3/);
+  const moments = (outcome.data as { moments: Array<{ late?: number; held?: boolean }> }).moments;
+  assert.deepEqual(moments.map((moment) => [moment.late, moment.held]), [[undefined, false], [0.533, false], [1.233, false]]);
+});
+
+test("a clock that holds is said to have held, and a frame's overshoot of a few milliseconds is not late", async () => {
+  const outcome = await captureMoments({ code: "_G.vfx = start()", times: [0.45] }, {}, fakeStudio({ reached: () => "0.451|done|held" }).studio);
+  assert.match(outcome.text, /Captured 1 of 1 moments, held still for each capture\./);
+  assert.doesNotMatch(outcome.text, /late|kept running/);
+  assert.deepEqual((outcome.data as { moments: unknown[] }).moments, [{ requested: 0.45, reached: 0.451, image: 1 }]);
 });
 
 test("in a playtest the code runs on the client peer", async () => {
@@ -269,6 +304,12 @@ test("with a reference, each moment comes back beside the clip's frame at its ti
   assert.match(outcome.text, /Each moment is paired with reference clip 0123456789ab in one image, two pairs to a row/);
   assert.match(outcome.text, /- 0\.3 s, at 0\.300 s: pair 3, beside the clip at 0\.50 s\n/);
   assert.deepEqual((outcome.data as { comparedWith?: string }).comparedWith, CLIP);
+
+  // A late frame is paired with the clip where the effect really was, not where it was asked to be.
+  const lateClips = chatClips();
+  const late = await captureMoments({ code: "_G.vfx = start()", times: [0.1], reference: { clip: CLIP } }, {}, fakeStudio({ reached: () => "0.400|done|runs" }).studio, sheet, lateClips);
+  assert.deepEqual(lateClips.frames, [12], "the clip's frame at 0.4 s, its 13th");
+  assert.match(late.text, /- 0\.1 s, at 0\.400 s \(0\.30 s late\): pair 1, beside the clip at 0\.40 s/);
 
   // A time past the clip's end shows its last frame, and says so.
   const past = await captureMoments({ code: "_G.vfx = start()", times: [0.1], reference: { clip: CLIP, times: [2.5] } }, {}, fakeStudio().studio, sheet, chatClips());
