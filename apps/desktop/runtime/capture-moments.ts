@@ -82,6 +82,8 @@ const HANDLE_NAME = /^[A-Za-z_][A-Za-z0-9_]{0,40}$/;
  * under one wait so it never eats the budget the moments need.
  */
 const PRELOAD_SECONDS = 10;
+/** Effect objects a live capture loads first, at most: enough for any skill set, bounded for a large game. */
+const PRELOAD_MAX_OBJECTS = 2000;
 
 /**
  * Effect seconds past its time a moment may be captured at before it is
@@ -294,21 +296,46 @@ export function stopLuau(handle: string): string {
 }
 
 /**
- * Luau that takes one screenshot where the effect will run and says whether
- * it could: "ok|" and the capture's id, "timeout" when it never finished (the
- * window is not rendering), or "error|why" when this context may not take
- * one. Run, and its capture read back, before a live capture, so a context
- * whose captures cannot be had never starts the effect.
+ * Luau run before a live capture. It first loads the textures of the effect
+ * objects the context holds (particles, beams, trails, decals and textures
+ * under ReplicatedStorage, ReplicatedFirst and the local player's scripts and
+ * backpack), for at most `PRELOAD_SECONDS`: an emitter whose texture has not
+ * arrived draws nothing, and a fireball run's first two live captures, right
+ * after its textures were uploaded, showed no effect at all. Then it takes
+ * one screenshot and says whether it could: "ok|id|loaded|count" (or
+ * "loading" when the wait ran out), "timeout" when the screenshot never
+ * finished (the window is not rendering), or "error|why" when this context
+ * may not take one. Its capture is read back too, so a context whose
+ * captures cannot be had never starts the effect.
  */
 export function liveProbeLuau(): string {
   return [
+    `local ContentProvider = game:GetService("ContentProvider")`,
     `local CaptureService = game:GetService("CaptureService")`,
+    "local kinds = { ParticleEmitter = true, Beam = true, Trail = true, Decal = true, Texture = true }",
+    "local found = {}",
+    "local function gather(root)",
+    "\tif root == nil then return end",
+    `\tfor _, item in ipairs(root:GetDescendants()) do if kinds[item.ClassName] and #found < ${PRELOAD_MAX_OBJECTS} then table.insert(found, item) end end`,
+    "end",
+    `pcall(gather, game:GetService("ReplicatedStorage"))`,
+    `pcall(gather, game:GetService("ReplicatedFirst"))`,
+    `local player = game:GetService("Players").LocalPlayer`,
+    `if player then pcall(gather, player:FindFirstChild("PlayerScripts")) pcall(gather, player:FindFirstChild("Backpack")) end`,
+    "local loaded = false",
+    "task.spawn(function()",
+    "\tpcall(function() ContentProvider:PreloadAsync(found) end)",
+    "\tloaded = true",
+    "end)",
+    "local waited = os.clock()",
+    `while not loaded and os.clock() - waited < ${PRELOAD_SECONDS} do task.wait() end`,
     "local id",
     "local ok, err = pcall(function() CaptureService:CaptureScreenshot(function(contentId) id = contentId end) end)",
     `if not ok then return "error|" .. tostring(err) end`,
     "local asked = os.clock()",
     `while id == nil and os.clock() - asked < ${CAPTURE_FINISH_SECONDS} do task.wait() end`,
-    `return id ~= nil and ("ok|" .. id) or "timeout"`,
+    `if id == nil then return "timeout" end`,
+    `return string.format("ok|%s|%s|%d", id, loaded and "loaded" or "loading", #found)`,
   ].join("\n");
 }
 
@@ -445,7 +472,8 @@ async function captureLive(
         : probed.replace(/^error\|/, "");
     return `${CAPTURE_MOMENTS_OPERATION} was not run: live capture needs ${where} to take its own screenshots, and it could not (${why}). Nothing was started; capture with hold instead.`;
   }
-  const probeArgs = { capture_id: probed.slice("ok|".length) };
+  const [, captureId = "", loadState, found] = probed.split("|");
+  const probeArgs = { capture_id: captureId };
   const readable = await studio("capture_screenshot", probeArgs, { signal: options.signal, timeoutMs: timeoutForTool("capture_screenshot", probeArgs) });
   if (options.signal?.aborted) throw new Error("Run was cancelled.");
   if (!readable.ok) {
@@ -500,13 +528,19 @@ async function captureLive(
     moment.image = images.length;
   }
   const clock = result.own === true ? `its times are _G.${parsed.handle}'s time field` : "its times are real seconds since the code returned";
+  const late = moments.filter((moment) => moment.late !== undefined);
   return {
     moments,
     images,
     how: ` live: the effect played at its own speed, and ${where} took each frame itself as its time came (${clock})`,
     notes: [
-      "Nothing was held or preloaded: a texture shown for the first time may be missing from early frames; if one is, capture again.",
-      ...(slowest > LATE_SECONDS ? [`A screenshot took up to ${slowest.toFixed(2)} s to finish, so a moment soon after another may be late, as its time says.`] : []),
+      loadState === "loading"
+        ? `The textures of the effect objects the client holds were still loading after ${PRELOAD_SECONDS} s, so frames may be missing layers; if they are, capture again.`
+        : Number(found) > 0
+          ? `Before the code ran, Roqer loaded the textures of the ${found} particle, beam, trail and decal objects the client holds, so an effect seen for the first time is not missing layers.`
+          : "Roqer found no particle, beam, trail or decal objects to load first, so a texture shown for the first time may be missing from early frames.",
+      // A screenshot taken inside the game takes about a third of a second to finish; the next waits for it.
+      ...(late.length === 0 || slowest <= 0 ? [] : [`Each screenshot took up to ${slowest.toFixed(2)} s to finish and the next waits for it, so ${late.map((moment) => `${moment.requested} s`).join(", ")} came late. One play gives at most one frame per ${slowest.toFixed(2)} s: capture those times in another call to see them on time.`]),
     ],
     footer: ["The effect was left to play out, as it would in the game."],
     ok: true,

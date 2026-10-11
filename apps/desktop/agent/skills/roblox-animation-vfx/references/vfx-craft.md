@@ -429,7 +429,8 @@ capture instead of caught in passing.
    - **What the game plays by itself** (a cast, a hit) cannot be held. Pass
      `"live": true` with code that triggers it as a player would: the client
      takes each frame itself as its time comes, timed from when the code
-     returns.
+     returns. A frame takes about 0.35 s to finish, so space times that far
+     apart and take closer beats in another call.
    - **Your own module's handle** can be held if it has a `time` field and a
      `setTimeScale(0)` that stops both `time` and what it draws.
 4. Make a second `capture_moments` call with the other view (step 2) and the

@@ -346,7 +346,7 @@ function liveStudio(overrides: { probe?: McpToolOutcome; live?: (code: string) =
       return overrides.read?.(id) ?? ok({}, { images: [{ data: `read-${id}`, mediaType: "image/jpeg" }] });
     }
     const code = String(args.code);
-    if (code.includes(`return id ~= nil and ("ok|" .. id) or "timeout"`)) return overrides.probe ?? ok({ result: "ok|rbxtemp://0" });
+    if (code.includes(`return string.format("ok|%s|%s|%d"`)) return overrides.probe ?? ok({ result: "ok|rbxtemp://0|loaded|12" });
     if (code.includes("HttpService:JSONEncode")) {
       return overrides.live?.(code) ?? ok({ result: JSON.stringify({ started: true, own: false, shots: [
         { at: 0.217, done: 0.25, id: "rbxtemp://1" },
@@ -381,7 +381,16 @@ test("the live Luau runs the code before any of Roqer's names exist, then captur
   assert.match(live, /while id == nil and os\.clock\(\) - asked < 3 do task\.wait\(\) end/);
   assert.match(live, /return HttpService:JSONEncode\(\{ started = true, own = own, shots = shots \}\)/);
   assert.doesNotMatch(live, /setTimeScale|h\.stop/, "nothing is held or stopped");
-  assert.match(liveProbeLuau(), /CaptureService:CaptureScreenshot/);
+  // Before anything starts, the effect objects the client holds load their textures, for a bounded time.
+  const probe = liveProbeLuau();
+  assert.match(probe, /local kinds = \{ ParticleEmitter = true, Beam = true, Trail = true, Decal = true, Texture = true \}/);
+  assert.match(probe, /pcall\(gather, game:GetService\("ReplicatedStorage"\)\)/);
+  assert.match(probe, /pcall\(gather, player:FindFirstChild\("PlayerScripts"\)\)/);
+  assert.match(probe, /#found < 2000/);
+  assert.match(probe, /ContentProvider:PreloadAsync\(found\)/);
+  assert.match(probe, /while not loaded and os\.clock\(\) - waited < 10 do task\.wait\(\) end/);
+  assert.ok(probe.indexOf("PreloadAsync") < probe.indexOf("CaptureScreenshot"), "textures load before the screenshot that tests capturing");
+  assert.match(probe, /return string\.format\("ok\|%s\|%s\|%d", id, loaded and "loaded" or "loading", #found\)/);
 });
 
 test("a live capture starts the effect once, takes every moment inside the client, and reads the pictures back afterwards", async () => {
@@ -396,7 +405,8 @@ test("a live capture starts the effect once, takes every moment inside the clien
   assert.match(outcome.text, /^Captured 2 of 2 moments live: the effect played at its own speed, and the playtest client \(client-2\) took each frame itself as its time came \(its times are real seconds since the code returned\)\./);
   assert.match(outcome.text, /- 0\.2 s, at 0\.217 s: image 1\n- 0\.5 s, at 0\.517 s: image 2/);
   assert.match(outcome.text, /The effect was left to play out, as it would in the game\./);
-  assert.doesNotMatch(outcome.text, /held still|Roqer stopped the effect/);
+  assert.match(outcome.text, /Before the code ran, Roqer loaded the textures of the 12 particle, beam, trail and decal objects the client holds/);
+  assert.doesNotMatch(outcome.text, /held still|Roqer stopped the effect|came late/);
   assert.equal((outcome.data as { live?: boolean }).live, true);
 });
 
@@ -442,6 +452,17 @@ test("a live capture says what failed: the code, a screenshot, a late moment, an
   assert.match(outcome.text, /- 0\.8 s, at 0\.600 s \(the clock stopped short of 0\.8 s: the effect had ended\): reading the capture back failed: Failed to load texture/);
   assert.match(outcome.text, /- 0\.9 s, at 0\.600 s \(the clock stopped short of 0\.9 s: the effect had ended\): capture failed: the screenshot never finished within 3 s/);
   assert.match(outcome.text, /- 1\.2 s: not captured: an earlier screenshot failed/);
-  assert.match(outcome.text, /A screenshot took up to 0\.10 s to finish, so a moment soon after another may be late/);
+  assert.match(outcome.text, /Each screenshot took up to 0\.10 s to finish and the next waits for it, so 0\.05 s came late\. One play gives at most one frame per 0\.10 s: capture those times in another call to see them on time\./);
   assert.equal(calls.filter((call) => call.tool === "capture_screenshot").length, 3, "the probe's and two moments'; a capture with no id is not read");
+});
+
+test("a live capture says when the textures were still loading, or when there was nothing to load first", async () => {
+  const loading = await captureMoments({ code: "cast()", times: [0.2], runtime: "client", live: true }, {}, liveStudio({ probe: ok({ result: "ok|rbxtemp://0|loading|40" }) }).studio);
+  assert.match(loading.text, /were still loading after 10 s, so frames may be missing layers; if they are, capture again/);
+  const none = await captureMoments({ code: "cast()", times: [0.2], runtime: "client", live: true }, {}, liveStudio({ probe: ok({ result: "ok|rbxtemp://0|loaded|0" }) }).studio);
+  assert.match(none.text, /found no particle, beam, trail or decal objects to load first/);
+  // The probe's own capture id is what is read back, whatever follows it.
+  const { studio, calls } = liveStudio({ probe: ok({ result: "ok|rbxtemp://7|loaded|3" }) });
+  await captureMoments({ code: "cast()", times: [0.2], runtime: "client", live: true }, {}, studio);
+  assert.deepEqual(calls[1]?.args, { capture_id: "rbxtemp://7" });
 });

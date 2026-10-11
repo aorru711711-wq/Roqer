@@ -1548,14 +1548,52 @@ the second was reading the picture back and encoding it, between moments.
 - Unit tests cover the arguments, the call sequence, the reads by
   `capture_id` and every failure the result names.
 
-**Not checked in Studio:**
+**Not checked in Studio at the time:**
 - that a LocalScript may call `CaptureService:CaptureScreenshot`, which the
-  plugin has so far called only from its own client context;
+  plugin had so far called only from its own client context;
 - that the edit DM reads those ids as it reads the plugin's;
 - how soon after the call the frame is taken.
 
 The probe turns the first two into a clear refusal before anything starts,
-not into wrong frames.
+not into wrong frames. The next run answered both (below).
+
+### After the third fireball run
+
+The same brief, with live capture available. The agent used it five times
+in a solo playtest.
+
+**What it showed:**
+- **Live capture works in Studio.** A LocalScript may call
+  `CaptureScreenshot`, and the edit DM reads its ids. Each call's first
+  moment came within a frame of its time: 0.15 → 0.165, 0.12 → 0.133,
+  0.45 → 0.465 and 0.26 → 0.266 s.
+- **A screenshot taken inside the game takes 0.33-0.38 s to finish.** The
+  loop waits for one before the next, so one play gives at most a frame
+  every third of a second. Asked for 0.15, 0.32, 0.45, 0.62, 0.75 and
+  0.95 s, it captured at 0.165, 0.499, 0.831, 1.183, 1.515 and 1.849 s, each
+  said to be late. Whether a second screenshot may be asked for before the
+  first finishes, and whether its frame would then be taken at once, is not
+  known.
+- **The first two live captures showed no effect at all.** No particle was
+  drawn, though the first cast did its damage and the second showed the
+  throw pose. The textures had been uploaded just before the playtest, and
+  live capture loaded nothing first. A held capture (whose preload waits for
+  its textures) then showed the explosion, and every live capture after it
+  did too. The agent put the first empty capture down to loading textures,
+  and did not remark on the second.
+- **A held capture in the playtest works** when the code plays the effect
+  through the emit module on the client: 0.25 → 0.252 and 0.6 → 0.601 s.
+
+**What changed:**
+- **The live probe now loads textures first.** It loads the particles,
+  beams, trails, decals and textures under `ReplicatedStorage`,
+  `ReplicatedFirst` and the local player's scripts and backpack, for at
+  most 10 s and 2,000 objects, before its test screenshot. The result says
+  how many loaded, or that they were still loading.
+- **Late moments get advice.** The result names the moments that came late
+  and says to capture them in another call.
+- **The guidance and the operation's description** say a frame takes about
+  0.35 s to finish, so live times are spaced that far apart.
 
 ## Deferred, and why
 
