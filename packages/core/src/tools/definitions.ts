@@ -1842,6 +1842,10 @@ export const TOOL_DEFINITIONS: ToolDefinition[] = [
           type: 'number',
           description: 'JPEG quality 1-100; defaults to 92. Ignored for png.'
         },
+        capture_id: {
+          type: 'string',
+          description: 'rbxtemp:// id a client capture gave; reads it instead of capturing.'
+        },
         instance_id: {
           type: 'string',
           description: 'Connected place ID; required with multiple places.'

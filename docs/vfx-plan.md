@@ -1494,13 +1494,68 @@ The user called it "starting to look better":
   - An explosion's route still arrives in two calls. Its second call is
     47,956 of 48,000 characters, so the next addition to that route needs a
     matching cut.
-- **Not fixed:**
-  - Effects a game plays by itself in a playtest still cannot be held. Their
-    moments are now reported late rather than mislabelled. Capturing inside
-    the client and reading the images afterwards would make them accurate;
-    that needs a capture tool that can begin a capture without reading it.
-  - `capture_screenshot` takes no `target`, so with `target: "client-2"` the
-    code runs on client 2 but the frame is client 1's.
+- **Left for the next step:** effects a game plays by itself could still not
+  be held. Their moments were reported late rather than mislabelled.
+
+### Live capture
+
+An effect the game plays by itself (a cast, a hit) runs on the game's own
+clock, so holding it is not possible. The screenshot itself was never the
+problem: `CaptureService:CaptureScreenshot` grabs a frame at once. What took
+the second was reading the picture back and encoding it, between moments.
+
+**Built:**
+- **`capture_moments` with `live: true`:**
+  1. One probe asks the client to take a screenshot, and Roqer reads it
+     back. A client that cannot (an error, a window that is not rendering,
+     or a capture the edit DM cannot read) is reported before the effect
+     starts, so a cast is not spent for nothing.
+  2. One call then runs the code that triggers the effect and waits for each
+     time on the client.
+  3. At each time it takes the screenshot there and then, from inside the
+     game, and moves on.
+  4. Afterwards Roqer reads each capture back.
+- **Timing:**
+  - Times are real seconds after the code returns, or a new handle's `time`
+    when the code stores one. A handle whose clock stops has ended, and the
+    rest is captured where it stopped.
+  - Times reach 15 s, so every moment fits one bridge call.
+  - Nothing is held, preloaded or stopped: the effect plays out as in the
+    game.
+- **Truthful results:** a moment more than 0.05 s late says so, and a
+  screenshot slow to finish is named.
+- **`capture_screenshot` takes `capture_id`:** the `rbxtemp://` id such a
+  capture gave. It reads that capture in the edit DM, the second half of a
+  play-mode capture, instead of taking one. Only temporary capture ids are
+  accepted, with no `..`, so it cannot become a way to fetch other content
+  with the edit DM's privileges. It is a read, and the inspector edition
+  keeps it.
+- **A side effect on multi-client playtests:** a live capture on
+  `target: "client-2"` is client 2's view, because client 2 takes it. A held
+  capture still screenshots client 1, since `capture_screenshot` takes no
+  `target`.
+
+**Checked:**
+- The generated client Luau was run in Lua 5.1 against a simulated game with
+  a frame clock, a `CaptureService` whose callback fires a few frames later
+  (or never, or errors) and an emit-like handle:
+  - moments land within a frame of their times;
+  - a handle's clock is followed until its effect ends;
+  - a slow screenshot makes the next moment late, and it is said so;
+  - the probe catches both failures;
+  - code that assigns globals named like Roqer's locals cannot disturb them,
+    since it runs before they exist.
+- Unit tests cover the arguments, the call sequence, the reads by
+  `capture_id` and every failure the result names.
+
+**Not checked in Studio:**
+- that a LocalScript may call `CaptureService:CaptureScreenshot`, which the
+  plugin has so far called only from its own client context;
+- that the edit DM reads those ids as it reads the plugin's;
+- how soon after the call the frame is taken.
+
+The probe turns the first two into a clear refusal before anything starts,
+not into wrong frames.
 
 ## Deferred, and why
 

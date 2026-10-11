@@ -249,7 +249,7 @@ export const TOOL_HANDLERS: Record<string, ToolHandler> = {
     body.operationId,
     body.instance_id,
   ),
-  capture_screenshot: (tools, body) => tools.captureScreenshot(body.instance_id, body.format, body.quality),
+  capture_screenshot: (tools, body) => tools.captureScreenshot(body.instance_id, body.format, body.quality, body.capture_id),
   inspect_ui: (tools, body) => tools.inspectUi(
     body.mode,
     body.root,

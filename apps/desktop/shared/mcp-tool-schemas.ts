@@ -44,10 +44,10 @@ export type ToolSchema = {
 };
 
 /** sha256 of `packages/core/src/tools/definitions.ts` with LF newlines. */
-export const TOOL_DEFINITIONS_DIGEST = "05aa58e0c89a443f6926e579972e5e8964f5d5378c435d4a4af2fd35d893f2aa";
+export const TOOL_DEFINITIONS_DIGEST = "92e353b83457e0eea1c26bac21e8703a7124a8dd48321b9d713d9fb1400251db";
 
 /** What a bridge built from these definitions reports as `toolCatalogDigest` on `/health`. */
-export const TOOL_CATALOG_DIGEST = "3b333c13ffff14b4fd8f9df799ff675d5f2f11fc79acd1d3a936e8c1498adf46";
+export const TOOL_CATALOG_DIGEST = "1ab80bf6d26b0c4fee9bd5ade779289f69a44c30ead02b5f3f8e978b100eccd3";
 
 export const TOOL_SCHEMAS: Readonly<Record<string, ToolSchema>> = {
   animation: {
@@ -146,6 +146,7 @@ export const TOOL_SCHEMAS: Readonly<Record<string, ToolSchema>> = {
     parameters: [
       { name: "format", type: "string", required: false, enumValues: ["jpeg", "png"], description: "Format; jpeg is smaller, png lossless; default jpeg." },
       { name: "quality", type: "number", required: false, description: "JPEG quality 1-100; defaults to 92. Ignored for png." },
+      { name: "capture_id", type: "string", required: false, description: "rbxtemp:// id a client capture gave; reads it instead of capturing." },
       { name: "instance_id", type: "string", required: false, description: "Connected place ID; required with multiple places." },
     ],
   },

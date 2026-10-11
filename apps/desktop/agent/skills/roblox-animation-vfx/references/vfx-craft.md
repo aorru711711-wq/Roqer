@@ -426,10 +426,12 @@ capture instead of caught in passing.
      trails come out 25 times too short.
    - **On a character in a playtest:** pass `"runtime": "client"`; the code
      runs in the client, and the frames are the player's view.
-   - **Your own module's handle** works too, if it has a `time` field in effect
-     seconds and `setTimeScale(scale)` whose 0 stops both `time` and what it
-     draws. A clock read from `os.clock()` cannot hold: a playtest capture
-     takes about a second, so later moments land late, and the result says so.
+   - **What the game plays by itself** (a cast, a hit) cannot be held. Pass
+     `"live": true` with code that triggers it as a player would: the client
+     takes each frame itself as its time comes, timed from when the code
+     returns.
+   - **Your own module's handle** can be held if it has a `time` field and a
+     `setTimeScale(0)` that stops both `time` and what it draws.
 4. Make a second `capture_moments` call with the other view (step 2) and the
    same times: two calls for both views, never a call per moment.
 5. Ask of each capture:

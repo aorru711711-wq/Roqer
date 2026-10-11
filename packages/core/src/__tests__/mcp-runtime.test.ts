@@ -163,7 +163,11 @@ describe('MCP v2 tool runtime', () => {
     // Linking a Rojo project added about 40 characters to manage_instance
     // instead of a new tool: script edits on a linked place are saved to the
     // project's files.
-    expect(serialized.length).toBeLessThanOrEqual(50_900);
+    // Reading a capture a client already took added about 110 characters to
+    // capture_screenshot instead of a new tool: a live capture_moments takes
+    // each frame inside the client at its moment, then reads them back, so an
+    // effect the game plays by itself is seen at its times, not a second late.
+    expect(serialized.length).toBeLessThanOrEqual(51_000);
     expect(catalog.filter((tool) => tool.outputSchema)).toHaveLength(51);
     expect(catalog.every((tool) => tool.description.length <= 120)).toBe(true);
     expect(inspectorCatalog).toHaveLength(25);

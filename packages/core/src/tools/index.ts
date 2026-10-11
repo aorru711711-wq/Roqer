@@ -69,6 +69,9 @@ import { toStudioText } from '../rojo/text-format.js';
 import * as fs from 'fs';
 import * as path from 'path';
 
+/** A temporary screenshot id, as CaptureService:CaptureScreenshot hands one to its callback. */
+const CAPTURE_ID = /^rbxtemp:\/\/(?!.*\.\.)[A-Za-z0-9._/-]{1,200}$/;
+
 type RawImageCaptureResponse = {
   success?: boolean;
   error?: string;
@@ -6429,9 +6432,15 @@ export class RobloxStudioTools {
     format?: string,
     quality?: number,
     maxBytes: number = MAX_INLINE_IMAGE_BYTES,
+    captureId?: string,
   ): Promise<EncodedViewportCapture> {
     let response: RawImageCaptureResponse;
-    if (targetRole.startsWith('client-')) {
+    if (captureId !== undefined) {
+      // A capture a playtest client already took by itself (CaptureService in
+      // the game VM, at the moment it wanted): only the read-back is left, and
+      // it runs in the edit DM like the second step of a play-mode capture.
+      response = await this._callSingle('/api/capture-read', { contentId: captureId }, 'edit', instanceId) as RawImageCaptureResponse;
+    } else if (targetRole.startsWith('client-')) {
       // Play mode. The running game VM can trigger CaptureScreenshot but can't
       // read the resulting temp texture back (privilege gate). So capture on
       // the client to get the rbxtemp:// id, then read it back in the edit DM —
@@ -6453,7 +6462,7 @@ export class RobloxStudioTools {
     if (response.error) {
       let text = response.error;
       if (
-        targetRole.startsWith('client-') &&
+        (targetRole.startsWith('client-') || captureId !== undefined) &&
         response.error.includes('Failed to load texture, unexpected format') &&
         await this._isMultiplayerTestRunning(instanceId)
       ) {
@@ -6543,9 +6552,14 @@ export class RobloxStudioTools {
     };
   }
 
-  async captureScreenshot(instance_id?: string, format?: string, quality?: number) {
+  async captureScreenshot(instance_id?: string, format?: string, quality?: number, capture_id?: unknown) {
+    // Only a temporary capture id is read, so this never becomes a way to
+    // fetch arbitrary content through the edit DM's privileges.
+    if (capture_id !== undefined && (typeof capture_id !== 'string' || !CAPTURE_ID.test(capture_id))) {
+      return this._textResult({ error: 'capture_id must be the rbxtemp:// id a CaptureService:CaptureScreenshot callback gave.' });
+    }
     const { instanceId, clientRole } = this._resolveRuntime(instance_id);
-    const capture = await this._captureViewportImage(instanceId, clientRole ?? 'edit', format, quality);
+    const capture = await this._captureViewportImage(instanceId, clientRole ?? 'edit', format, quality, MAX_INLINE_IMAGE_BYTES, capture_id);
     if (!capture.success) {
       return this._textResult({ error: capture.error });
     }

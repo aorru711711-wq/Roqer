@@ -4367,6 +4367,37 @@ describe('Smoke', () => {
     expect(meta.message).toContain('multiply x read off this image by 1.3333 and y by 2.0000');
   });
 
+  test('capture_screenshot reads a capture a client already took, in the edit DM, without taking another', async () => {
+    const bridge = new BridgeService();
+    const tools = trackedTools(bridge);
+    bridge.registerInstance(READY);
+
+    const resultPromise = tools.captureScreenshot('place:test', 'jpeg', 80, 'rbxtemp://42');
+
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    const readPending = claimQueuedRequest(bridge, 'session-1');
+    expect(readPending?.request).toMatchObject({ endpoint: '/api/capture-read', data: { contentId: 'rbxtemp://42' } });
+    bridge.resolveRequest(readPending!.requestId, { width: 1, height: 1, data: Buffer.from([0, 0, 0, 255]).toString('base64') });
+
+    const result = await resultPromise;
+    expect(result.content.some((item) => item.type === 'image')).toBe(true);
+    expect(claimQueuedRequest(bridge, 'session-1')).toBeNull();
+  });
+
+  test('capture_screenshot refuses a capture_id that is not a temporary capture, before asking Studio', async () => {
+    const bridge = new BridgeService();
+    const tools = trackedTools(bridge);
+    bridge.registerInstance(READY);
+
+    for (const id of ['rbxassetid://123', 'rbxtemp://../secret', 42]) {
+      const result = await tools.captureScreenshot('place:test', 'jpeg', 80, id);
+      const first = result.content[0];
+      if (first.type !== 'text') throw new Error('Expected an error text');
+      expect(first.text).toContain('capture_id must be the rbxtemp:// id');
+    }
+    expect(claimQueuedRequest(bridge, 'session-1')).toBeNull();
+  });
+
   test('capture_device_matrix keeps the total inline image payload within the aggregate budget', async () => {
     const bridge = new BridgeService();
     const tools = trackedTools(bridge);

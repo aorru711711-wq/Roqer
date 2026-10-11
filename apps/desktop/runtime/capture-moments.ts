@@ -21,6 +21,13 @@ import { frameLabel } from "./sheet-labels";
  * It also sees what holding cannot. A trail ages in real time while its effect
  * is held, so a held frame shows no trail; with `hold: false` the effect keeps
  * playing slowly through each capture instead.
+ *
+ * And what cannot be held at all. An effect the game plays by itself in a
+ * playtest (a cast, a hit) runs on the game's own clock, and a screenshot
+ * taken from outside takes about a second to come back, so every moment after
+ * the first was a second late. With `live: true` the client takes each
+ * screenshot itself, from inside the game, as its moment passes, all in one
+ * call; the slow part, reading the pictures back, comes after the effect.
  */
 
 /** Real seconds one wait may take: under the bridge's 30 s budget for the call that waits. */
@@ -50,6 +57,14 @@ const SLOW_APPROACH_SECONDS = 1.5;
  * earlier than that would still show.
  */
 const TRAIL_APPROACH_SECONDS = 0.9;
+/**
+ * Effect seconds a live capture may reach. Every moment is waited for in one
+ * call, inside the bridge's 30 s budget, with room for the code that starts
+ * the effect and for each screenshot to finish.
+ */
+const LIVE_MAX_SECONDS = 15;
+/** Real seconds a screenshot may take to finish before the client is taken to be unable to render. */
+const CAPTURE_FINISH_SECONDS = 3;
 /** Milliseconds of a call's budget kept for the last screenshot, stopping the effect and tiling. */
 const BUDGET_RESERVE_MS = 20_000;
 const MAX_CODE_CHARS = 20_000;
@@ -103,6 +118,8 @@ export type CaptureMomentsArgs = Readonly<{
   hold: boolean;
   slow: number;
   sheet: boolean;
+  /** Played at the effect's own speed and captured from inside, nothing held. */
+  live?: true;
   view?: CaptureView;
   reference?: CaptureReference;
 }>;
@@ -157,7 +174,7 @@ const SHEET_COLUMNS = 2;
 
 /** The call's arguments, checked, or why they cannot run. */
 export function parseCaptureMoments(args: Record<string, unknown>): CaptureMomentsArgs | string {
-  const { code, times, runtime = "edit", target, handle = "vfx", hold = true, slow, sheet = true } = args;
+  const { code, times, runtime = "edit", target, handle = "vfx", hold = true, slow, sheet = true, live = false } = args;
   if (typeof code !== "string" || code.trim() === "") return "code must be the Luau that starts the effect.";
   if (code.length > MAX_CODE_CHARS) return `code is ${code.length} characters; keep it under ${MAX_CODE_CHARS}: start the effect from a module rather than inlining it.`;
   if (!Array.isArray(times) || times.length === 0 || times.length > MAX_CAPTURE_MOMENTS) {
@@ -172,6 +189,11 @@ export function parseCaptureMoments(args: Record<string, unknown>): CaptureMomen
   if (typeof handle !== "string" || !HANDLE_NAME.test(handle)) return "handle must be a plain global name, such as vfx.";
   if (typeof hold !== "boolean") return "hold must be true or false.";
   if (typeof sheet !== "boolean") return "sheet must be true or false.";
+  if (typeof live !== "boolean") return "live must be true or false.";
+  if (live && (args.hold !== undefined || slow !== undefined)) return "live plays the effect at its own speed and holds nothing, so leave hold and slow out.";
+  if (live && (times as number[]).some((time) => time > LIVE_MAX_SECONDS)) {
+    return `with live, every time must be at most ${LIVE_MAX_SECONDS} s: the client waits for them all in one call.`;
+  }
   const speed = slow === undefined ? (hold ? 0.1 : 0.04) : slow;
   if (typeof speed !== "number" || !Number.isFinite(speed) || speed < 0.01 || speed > 1) return "slow must be a playback speed from 0.01 to 1.";
   const view = parseView(args.view, runtime);
@@ -187,6 +209,7 @@ export function parseCaptureMoments(args: Record<string, unknown>): CaptureMomen
     hold,
     slow: speed,
     sheet,
+    ...(live ? { live: true as const } : {}),
     ...(view === undefined ? {} : { view }),
     ...(reference === undefined ? {} : { reference }),
   };
@@ -270,6 +293,76 @@ export function stopLuau(handle: string): string {
   ].join("\n");
 }
 
+/**
+ * Luau that takes one screenshot where the effect will run and says whether
+ * it could: "ok|" and the capture's id, "timeout" when it never finished (the
+ * window is not rendering), or "error|why" when this context may not take
+ * one. Run, and its capture read back, before a live capture, so a context
+ * whose captures cannot be had never starts the effect.
+ */
+export function liveProbeLuau(): string {
+  return [
+    `local CaptureService = game:GetService("CaptureService")`,
+    "local id",
+    "local ok, err = pcall(function() CaptureService:CaptureScreenshot(function(contentId) id = contentId end) end)",
+    `if not ok then return "error|" .. tostring(err) end`,
+    "local asked = os.clock()",
+    `while id == nil and os.clock() - asked < ${CAPTURE_FINISH_SECONDS} do task.wait() end`,
+    `return id ~= nil and ("ok|" .. id) or "timeout"`,
+  ].join("\n");
+}
+
+/**
+ * Luau that runs the code that starts the effect, then waits for each time and
+ * takes a screenshot there with CaptureService, from inside the context the
+ * effect plays in, holding nothing. Its clock is the handle's `time` when the
+ * code stored a new handle with one, otherwise real seconds since the code
+ * returned. It answers in JSON: whether the code ran, and for each moment the
+ * clock when the screenshot was asked for (`at`), the clock when it finished
+ * (`done`) and the capture's temporary id, or why there is none. It stops at
+ * the first screenshot that fails: the next would fail the same way.
+ */
+export function liveLuau(code: string, handle: string, times: readonly number[]): string {
+  return [
+    // Defined before anything of Roqer's, so the code cannot see or overwrite it.
+    "local function start()",
+    code,
+    "end",
+    `local CaptureService = game:GetService("CaptureService")`,
+    `local HttpService = game:GetService("HttpService")`,
+    `local name = ${JSON.stringify(handle)}`,
+    `local times = { ${times.join(", ")} }`,
+    "local before = _G[name]",
+    "local started, startError = pcall(start)",
+    "if not started then return HttpService:JSONEncode({ started = false, error = tostring(startError) }) end",
+    "local origin = os.clock()",
+    "local h = _G[name]",
+    `local own = h ~= before and type(h) == "table" and tonumber(h.time) ~= nil`,
+    "local function clock() if own then return tonumber(h.time) or 0 end return os.clock() - origin end",
+    // A handle's clock that stops has ended its effect; what is left is captured where it stopped.
+    "local last, moved = clock(), os.clock()",
+    `local function ended() return own and (h.finished == true or os.clock() - moved >= ${STALLED_SECONDS}) end`,
+    "local shots = {}",
+    "for i, target in ipairs(times) do",
+    `\twhile clock() < target and not ended() and os.clock() - origin < ${LIVE_MAX_SECONDS + 1} do`,
+    "\t\ttask.wait()",
+    "\t\tlocal now = clock()",
+    "\t\tif now ~= last then last, moved = now, os.clock() end",
+    "\tend",
+    "\tlocal at, id = clock(), nil",
+    "\tlocal ok, err = pcall(function() CaptureService:CaptureScreenshot(function(contentId) id = contentId end) end)",
+    "\tif not ok then shots[i] = { at = at, error = tostring(err) } break end",
+    "\tlocal asked = os.clock()",
+    `\twhile id == nil and os.clock() - asked < ${CAPTURE_FINISH_SECONDS} do task.wait() end`,
+    "\tshots[i] = { at = at, done = clock(), id = id }",
+    "\tif id == nil then break end",
+    // Waiting for the screenshot is not the clock standing still.
+    "\tlast, moved = clock(), os.clock()",
+    "end",
+    "return HttpService:JSONEncode({ started = true, own = own, shots = shots })",
+  ].join("\n");
+}
+
 function failure(text: string, started: number, images: readonly McpToolImage[] = []): McpToolOutcome {
   return { ok: false, data: undefined, text, httpStatus: 200, durationMs: Date.now() - started, ...(images.length > 0 ? { images } : {}) };
 }
@@ -325,6 +418,184 @@ async function pairWithReference(
   return sheet === undefined ? undefined : { sheet, lines };
 }
 
+type LiveShot = { at?: unknown; done?: unknown; id?: unknown; error?: unknown };
+
+/**
+ * A live capture: checks that the context can take its own screenshots, runs
+ * the code and the moments in one call (`liveLuau`), then reads each capture
+ * back. Nothing is held or stopped: the effect plays out as it would in the
+ * game. Gives the moments and frames, or why nothing was captured.
+ */
+async function captureLive(
+  parsed: CaptureMomentsArgs,
+  options: McpCallOptions,
+  studio: StudioCaller,
+  run: (code: string) => Promise<McpToolOutcome>,
+): Promise<Pick<Captured, "moments" | "images" | "how" | "notes" | "footer" | "ok" | "data"> | string> {
+  const where = parsed.runtime === "client" ? `the playtest client (${parsed.target})` : "Studio";
+  // A context whose captures cannot be taken or read never starts the effect: a cast would be spent for nothing.
+  const probe = await run(liveProbeLuau());
+  if (options.signal?.aborted) throw new Error("Run was cancelled.");
+  const probed = probe.ok ? returned(probe).trim() : "";
+  if (!probed.startsWith("ok|")) {
+    const why = !probe.ok
+      ? probe.message ?? probe.text
+      : probed === "timeout"
+        ? `its screenshot never finished within ${CAPTURE_FINISH_SECONDS} s, so Studio's window is likely minimized or covered`
+        : probed.replace(/^error\|/, "");
+    return `${CAPTURE_MOMENTS_OPERATION} was not run: live capture needs ${where} to take its own screenshots, and it could not (${why}). Nothing was started; capture with hold instead.`;
+  }
+  const probeArgs = { capture_id: probed.slice("ok|".length) };
+  const readable = await studio("capture_screenshot", probeArgs, { signal: options.signal, timeoutMs: timeoutForTool("capture_screenshot", probeArgs) });
+  if (options.signal?.aborted) throw new Error("Run was cancelled.");
+  if (!readable.ok) {
+    return `${CAPTURE_MOMENTS_OPERATION} was not run: live capture needs Studio to read back what ${where} captures, and it could not (${readable.message ?? readable.text}). Nothing was started; capture with hold instead.`;
+  }
+  const reply = await run(liveLuau(parsed.code, parsed.handle, parsed.times));
+  if (options.signal?.aborted) throw new Error("Run was cancelled.");
+  let result: { started?: unknown; error?: unknown; own?: unknown; shots?: unknown } | undefined;
+  try {
+    result = reply.ok ? JSON.parse(returned(reply)) as typeof result : undefined;
+  } catch {
+    result = undefined;
+  }
+  if (result === undefined) return `The live capture failed, so nothing was captured: ${reply.message ?? reply.text}`;
+  if (result.started !== true) return `The code that starts the effect failed, so nothing was captured: ${String(result.error)}`;
+
+  const shots = Array.isArray(result.shots) ? result.shots as LiveShot[] : [];
+  const moments: Moment[] = [];
+  const images: McpToolImage[] = [];
+  let slowest = 0;
+  for (const [index, time] of parsed.times.entries()) {
+    const moment: Moment = { requested: time };
+    moments.push(moment);
+    const shot = shots[index];
+    if (shot === undefined) {
+      moment.note = "not captured: an earlier screenshot failed";
+      continue;
+    }
+    if (typeof shot.at === "number" && Number.isFinite(shot.at)) {
+      moment.reached = Math.round(shot.at * 1000) / 1000;
+      if (shot.at + 0.005 < time) moment.short = "ended";
+      if (shot.at - time > LATE_SECONDS) moment.late = Math.round((shot.at - time) * 1000) / 1000;
+      // Only a screenshot that finished says how long one takes.
+      if (typeof shot.done === "number" && typeof shot.id === "string") slowest = Math.max(slowest, shot.done - shot.at);
+    }
+    if (typeof shot.id !== "string") {
+      moment.note = typeof shot.error === "string"
+        ? `capture failed: ${shot.error}`.slice(0, 300)
+        : `capture failed: the screenshot never finished within ${CAPTURE_FINISH_SECONDS} s (Studio's window may be minimized or covered)`;
+      continue;
+    }
+    if (options.signal?.aborted) throw new Error("Run was cancelled.");
+    // The client took the picture at its moment; reading it back is the slow part, and comes after.
+    const readArgs = { capture_id: shot.id };
+    const read = await studio("capture_screenshot", readArgs, { signal: options.signal, timeoutMs: timeoutForTool("capture_screenshot", readArgs) });
+    const image = read.ok ? read.images?.[0] : undefined;
+    if (image === undefined) {
+      moment.note = `reading the capture back failed: ${read.message ?? read.text}`.slice(0, 300);
+      continue;
+    }
+    images.push(image);
+    moment.image = images.length;
+  }
+  const clock = result.own === true ? `its times are _G.${parsed.handle}'s time field` : "its times are real seconds since the code returned";
+  return {
+    moments,
+    images,
+    how: ` live: the effect played at its own speed, and ${where} took each frame itself as its time came (${clock})`,
+    notes: [
+      "Nothing was held or preloaded: a texture shown for the first time may be missing from early frames; if one is, capture again.",
+      ...(slowest > LATE_SECONDS ? [`A screenshot took up to ${slowest.toFixed(2)} s to finish, so a moment soon after another may be late, as its time says.`] : []),
+    ],
+    footer: ["The effect was left to play out, as it would in the game."],
+    ok: true,
+    data: { live: true },
+  };
+}
+
+/** What a capture produced, for `deliver` to tile, pair and describe. */
+type Captured = Readonly<{
+  parsed: CaptureMomentsArgs;
+  manifest?: ClipManifest;
+  references?: ChatClips;
+  contactSheet?: ContactSheet;
+  moments: readonly Moment[];
+  images: readonly McpToolImage[];
+  started: number;
+  /** How the moments were captured, as it follows "Captured N of M moments". */
+  how: string;
+  /** Lines after the first, before the moments. */
+  notes: readonly string[];
+  /** Lines after the moments. */
+  footer: readonly string[];
+  ok: boolean;
+  data?: Readonly<Record<string, unknown>>;
+}>;
+
+/** The frames tiled, or paired with a reference clip, and the text that says which is which. */
+async function deliver(captured: Captured): Promise<McpToolOutcome> {
+  const { parsed, manifest, references, contactSheet, moments, images, started } = captured;
+  // A sheet of up to eight frames costs the model about what two frames do, so the frames go as one unless asked otherwise.
+  let delivered = images;
+  let tiled = false;
+  let paired: Map<Moment, string> | undefined;
+  let pairingNote: string | undefined;
+  if (parsed.reference !== undefined && manifest !== undefined && references !== undefined && contactSheet !== undefined && images.length > 0) {
+    const comparison = await pairWithReference({ ...parsed, reference: parsed.reference }, manifest, moments, images, references, contactSheet)
+      .catch(() => undefined);
+    if (comparison === undefined) {
+      pairingNote = "Roqer could not pair the frames with the clip's, so they come back on their own.";
+    } else {
+      delivered = [comparison.sheet];
+      paired = comparison.lines;
+    }
+  }
+  if (paired === undefined && parsed.sheet && contactSheet !== undefined && images.length > 1) {
+    const sheet = await contactSheet(images, SHEET_COLUMNS).catch(() => undefined);
+    if (sheet !== undefined) {
+      delivered = [sheet];
+      tiled = true;
+    }
+  }
+  const lines = moments.map((moment) => {
+    const at = moment.reached === undefined ? "" : `, at ${moment.reached.toFixed(3)} s`;
+    const short = moment.short === "ended"
+      ? ` (the clock stopped short of ${moment.requested} s: the effect had ended)`
+      : moment.short === "waited"
+        ? ` (still short of ${moment.requested} s when the waiting ran out)`
+        : moment.late !== undefined
+          ? ` (${moment.late.toFixed(2)} s late)`
+          : "";
+    const picture = moment.image === undefined
+      ? moment.note ?? "not captured"
+      : paired?.get(moment) ?? `${tiled ? "frame" : "image"} ${moment.image}`;
+    return `- ${moment.requested} s${at}${short}: ${picture}`;
+  });
+  const layout = paired !== undefined
+    ? `Each moment is paired with reference clip ${manifest!.id} in one image, two pairs to a row, left to right then top to bottom: the clip's frame at the matching time (labelled R${manifest!.analysis.crop === undefined ? "" : ", cropped to where the clip changes"}), then Studio's (labelled S), each label carrying the pair's number and time. Compare each pair for when it starts, peaks and fades, its size against the frame, its colours and its shape; the clip was filmed from its own camera, so compare proportions rather than position.`
+    : tiled
+      ? `The frames are tiled into one image, ${SHEET_COLUMNS} to a row, left to right then top to bottom. For one frame at full size, call again with sheet: false and just that time.`
+      : "The images follow in this order:";
+  const text = [
+    `Captured ${images.length} of ${parsed.times.length} moments${captured.how}. ${layout}`,
+    ...captured.notes,
+    ...(pairingNote === undefined ? [] : [pairingNote]),
+    ...lines,
+    ...captured.footer,
+  ].join("\n");
+  if (images.length === 0) return failure(text, started);
+  return {
+    ok: captured.ok,
+    data: { moments, ...captured.data, ...(paired === undefined ? {} : { comparedWith: manifest!.id }) },
+    text,
+    images: delivered,
+    httpStatus: 200,
+    durationMs: Date.now() - started,
+  };
+}
+
+
 export async function captureMoments(
   args: Record<string, unknown>,
   options: McpCallOptions,
@@ -357,6 +628,11 @@ export async function captureMoments(
     const viewArgs = { action: "view", ...parsed.view };
     const aimed = await studio("selection", viewArgs, { signal: options.signal, timeoutMs: timeoutForTool("selection", viewArgs) });
     if (!aimed.ok) return failure(`Aiming the camera at ${parsed.view.path} failed, so nothing was started or captured: ${aimed.message ?? aimed.text}`, started);
+  }
+
+  if (parsed.live === true) {
+    const captured = await captureLive(parsed, options, studio, run);
+    return typeof captured === "string" ? failure(captured, started) : deliver({ ...captured, parsed, manifest, references, contactSheet, started });
   }
 
   const start = await run(parsed.code);
@@ -431,42 +707,6 @@ export async function captureMoments(
     await run(stopLuau(parsed.handle), true).catch(() => undefined);
   }
 
-  // A sheet of up to eight frames costs the model about what two frames do, so the frames go as one unless asked otherwise.
-  let delivered = images;
-  let tiled = false;
-  let paired: Map<Moment, string> | undefined;
-  let pairingNote: string | undefined;
-  if (parsed.reference !== undefined && manifest !== undefined && references !== undefined && contactSheet !== undefined && images.length > 0) {
-    const comparison = await pairWithReference({ ...parsed, reference: parsed.reference }, manifest, moments, images, references, contactSheet)
-      .catch(() => undefined);
-    if (comparison === undefined) {
-      pairingNote = "Roqer could not pair the frames with the clip's, so they come back on their own.";
-    } else {
-      delivered = [comparison.sheet];
-      paired = comparison.lines;
-    }
-  }
-  if (paired === undefined && parsed.sheet && contactSheet !== undefined && images.length > 1) {
-    const sheet = await contactSheet(images, SHEET_COLUMNS).catch(() => undefined);
-    if (sheet !== undefined) {
-      delivered = [sheet];
-      tiled = true;
-    }
-  }
-  const lines = moments.map((moment) => {
-    const at = moment.reached === undefined ? "" : `, at ${moment.reached.toFixed(3)} s`;
-    const short = moment.short === "ended"
-      ? ` (the clock stopped short of ${moment.requested} s: the effect had ended)`
-      : moment.short === "waited"
-        ? ` (still short of ${moment.requested} s when the waiting ran out)`
-        : moment.late !== undefined
-          ? ` (${moment.late.toFixed(2)} s late)`
-          : "";
-    const picture = moment.image === undefined
-      ? moment.note ?? "not captured"
-      : paired?.get(moment) ?? `${tiled ? "frame" : "image"} ${moment.image}`;
-    return `- ${moment.requested} s${at}${short}: ${picture}`;
-  });
   const runOn = moments.some((moment) => moment.held === false);
   const how = !parsed.hold
     ? `kept playing at ${parsed.slow}x through each capture, so a frame may run a little past its time`
@@ -474,30 +714,20 @@ export async function captureMoments(
   // A clock that runs on through every capture reaches each later moment a capture's length late.
   const perShot = shotSeconds.length === 0 ? 0 : [...shotSeconds].sort((a, b) => a - b)[Math.floor(shotSeconds.length / 2)] as number;
   const ranOn = runOn
-    ? `_G.${parsed.handle}'s clock kept running while it was held: its setTimeScale(0) does not stop its time field. The effect played on through each capture (about ${perShot.toFixed(1)} s each), so every frame shows it later than asked, and each moment after the first is reached about that much late, as the times below say. To see the times asked for, store a handle whose setTimeScale(0) stops both its time and what it draws, as the emit module's does, or capture one moment per call.`
+    ? `_G.${parsed.handle}'s clock kept running while it was held: its setTimeScale(0) does not stop its time field. The effect played on through each capture (about ${perShot.toFixed(1)} s each), so every frame shows it later than asked, and each moment after the first is reached about that much late, as the times below say. To see the times asked for, pass live: true, store a handle whose setTimeScale(0) stops both its time and what it draws, as the emit module's does, or capture one moment per call.`
     : undefined;
-  const layout = paired !== undefined
-    ? `Each moment is paired with reference clip ${manifest!.id} in one image, two pairs to a row, left to right then top to bottom: the clip's frame at the matching time (labelled R${manifest!.analysis.crop === undefined ? "" : ", cropped to where the clip changes"}), then Studio's (labelled S), each label carrying the pair's number and time. Compare each pair for when it starts, peaks and fades, its size against the frame, its colours and its shape; the clip was filmed from its own camera, so compare proportions rather than position.`
-    : tiled
-      ? `The frames are tiled into one image, ${SHEET_COLUMNS} to a row, left to right then top to bottom. For one frame at full size, call again with sheet: false and just that time.`
-      : "The images follow in this order:";
-  const text = [
-    `Captured ${images.length} of ${parsed.times.length} moments, ${how}. ${layout}`,
-    ...(ranOn === undefined ? [] : [ranOn]),
-    ...(pairingNote === undefined ? [] : [pairingNote]),
-    ...(stillLoading ? [`Its textures were still loading after ${PRELOAD_SECONDS} s, so early frames may be missing layers; if they are, capture again.`] : []),
-    ...lines,
-    ...(skipped.length === 0 ? [] : [`Not captured, because this call's time ran out first: ${skipped.map((time) => `${time} s`).join(", ")}. Capture them in another call.`]),
-    ...(stopped === undefined ? [] : [stopped]),
-    "Roqer stopped the effect afterwards.",
-  ].join("\n");
-  if (images.length === 0) return failure(text, started);
-  return {
+  return deliver({
+    parsed, manifest, references, contactSheet, moments, images, started,
+    how: `, ${how}`,
+    notes: [
+      ...(ranOn === undefined ? [] : [ranOn]),
+      ...(stillLoading ? [`Its textures were still loading after ${PRELOAD_SECONDS} s, so early frames may be missing layers; if they are, capture again.`] : []),
+    ],
+    footer: [
+      ...(skipped.length === 0 ? [] : [`Not captured, because this call's time ran out first: ${skipped.map((time) => `${time} s`).join(", ")}. Capture them in another call.`]),
+      ...(stopped === undefined ? [] : [stopped]),
+      "Roqer stopped the effect afterwards.",
+    ],
     ok: stopped === undefined,
-    data: { moments, ...(paired === undefined ? {} : { comparedWith: manifest!.id }) },
-    text,
-    images: delivered,
-    httpStatus: 200,
-    durationMs: Date.now() - started,
-  };
+  });
 }
