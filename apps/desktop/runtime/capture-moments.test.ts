@@ -501,6 +501,16 @@ test("the frames get a colour check: a washed-out effect is told why it reads ch
   assert.doesNotMatch(deep.text, /washed out|Too much is pure white/);
 });
 
+test("frames in which nothing played say so, instead of passing without a colour check", async () => {
+  // A fireball run's live captures came back as the caster standing still; the effect never showed.
+  const times = [0.2, 0.6, 0.95, 1.3];
+  const empty = sceneFrames([160, 166, 176], times.length);
+  const outcome = await captureMoments({ code: "_G.vfx = start()", times }, {}, fakeStudio().studio, undefined, undefined, async (picture) => empty.get(picture.data));
+  assert.match(outcome.text, /Colour check: not measured\. Across these 4 frames nothing changes over even 0\.3% of the picture/);
+  assert.ok(outcome.text.indexOf("Colour check") > outcome.text.indexOf("- 1.3 s"), "after the moments");
+  assert.deepEqual((outcome.data as { tone?: unknown }).tone, { unmeasured: "nothing-showed" });
+});
+
 test("no colour check without a frame reader, with a frame that does not decode, or with too few frames", async () => {
   const times = [0.1, 0.2, 0.3, 0.4];
   const frames = sceneFrames([250, 205, 245], times.length);

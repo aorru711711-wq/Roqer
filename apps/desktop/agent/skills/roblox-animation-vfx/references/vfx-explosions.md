@@ -2,9 +2,9 @@
 
 Load this with `vfx-design.md` and `vfx-craft.md` for any explosion, fireball,
 blast, burning or smoke. It fills in the impact skeleton in `vfx-craft.md`
-section 4. *(measured)* marks numbers from the studied effects, read again
-for fire and smoke: 5,010 particle emitters, 1,427 textures and 6 explosion
-videos stepped frame by frame. None of it was checked in Studio.
+section 4. *(measured)* marks numbers from 5,010 studied emitters, 1,427
+textures and 6 explosion videos stepped frame by frame; none was checked in
+Studio.
 
 ## 1. The mass is a flipbook
 
@@ -135,6 +135,12 @@ fire covers it until it breaks up:
   dragon runs 18 black layers beside 15 white ones.
 - Dense black that lingers is a ground crack, a sigil or linework.
 - In the videos, smoke darkens what is behind it by 0.05-0.2 in luminance.
+
+**Over a bright sky, half-transparent smoke turns into sky.** The measured
+opacity comes from darker scenes than a new place's daylight. A fireball
+run's grey smoke took the sky's hue within 3°, a pale blue cloud *(seen in a
+run)*. In daylight make it more solid at its peak (Transparency 0.2-0.35)
+so it shows its own grey, warm where the fire lights it *(starting point)*.
 
 Cel puffs suit a clearly toon game, half transparent. Opaque two-tone puffs
 read as cotton balls; otherwise use soft or mottled smoke.

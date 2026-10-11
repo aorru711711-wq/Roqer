@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import type { AnalysisFrame } from "./clip-analysis";
-import { describeEffectTone, measureEffectTone } from "./effect-tone";
+import { describeEffectTone, describeToneGap, isToneGap, measureEffectTone, type EffectTone } from "./effect-tone";
 
 type Rgb = readonly [number, number, number];
 
@@ -32,8 +32,15 @@ function scene(color: Rgb, { order = "rgba", background = DAYLIGHT, frames = 6, 
   });
 }
 
+/** A measurement, failing the test when it comes back as a gap. */
+function measure(frames: AnalysisFrame[], order: "rgba" | "bgra" = "bgra"): EffectTone | undefined {
+  const reading = measureEffectTone(frames, order);
+  assert.ok(reading === undefined || !isToneGap(reading), `a gap: ${JSON.stringify(reading)}`);
+  return reading as EffectTone | undefined;
+}
+
 test("a pale effect over a bright scene is measured as washed out, and told what to change", () => {
-  const tone = measureEffectTone(scene([250, 205, 245]), "rgba");
+  const tone = measure(scene([250, 205, 245]), "rgba");
   assert.ok(tone);
   assert.ok(tone.pale > 0.9, `pale ${tone.pale}`);
   assert.equal(tone.vivid, 0);
@@ -44,37 +51,50 @@ test("a pale effect over a bright scene is measured as washed out, and told what
 });
 
 test("a deep, saturated effect passes without advice", () => {
-  const deep = measureEffectTone(scene([70, 10, 120]), "rgba");
+  const deep = measure(scene([70, 10, 120]), "rgba");
   assert.ok(deep);
   assert.ok(deep.deep > 0.9, `deep ${deep.deep}`);
   assert.equal(describeEffectTone(deep).length, 1);
-  const vivid = measureEffectTone(scene([230, 40, 200]), "rgba");
+  const vivid = measure(scene([230, 40, 200]), "rgba");
   assert.ok(vivid && vivid.vivid > 0.9);
   assert.equal(describeEffectTone(vivid).length, 1);
 });
 
 test("white blown out across the effect is named as too much white", () => {
-  const tone = measureEffectTone(scene([255, 255, 255]), "rgba");
+  const tone = measure(scene([255, 255, 255]), "rgba");
   assert.ok(tone && tone.blown > 0.9);
   const lines = describeEffectTone(tone);
   assert.ok(lines.some((line) => /Too much is pure white: a white highlight is a thin shape/.test(line)));
 });
 
 test("Electron's BGRA bitmaps are read in their own byte order", () => {
-  const rgba = measureEffectTone(scene([230, 40, 200]), "rgba");
-  const bgra = measureEffectTone(scene([230, 40, 200], { order: "bgra" }), "bgra");
+  const rgba = measure(scene([230, 40, 200]), "rgba");
+  const bgra = measure(scene([230, 40, 200], { order: "bgra" }), "bgra");
   assert.deepEqual(bgra, rgba);
   // Read in the wrong order, magenta would still be vivid; a blue-dominant colour shows the difference.
-  assert.ok((measureEffectTone(scene([40, 90, 230], { order: "bgra" }))?.vivid ?? 0) > 0.9, "BGRA is the default");
+  assert.ok((measure(scene([40, 90, 230], { order: "bgra" }))?.vivid ?? 0) > 0.9, "BGRA is the default");
 });
 
-test("it says nothing it cannot tell: too few frames, mismatched sizes, a moving camera or no effect", () => {
+test("it says nothing it cannot tell: too few frames or mismatched sizes", () => {
   assert.equal(measureEffectTone(scene([250, 205, 245], { frames: 2 }), "rgba"), undefined);
   const mismatched = scene([250, 205, 245]);
   mismatched[2] = { ...mismatched[2], width: WIDTH - 1 };
   assert.equal(measureEffectTone(mismatched, "rgba"), undefined);
+});
+
+test("frames with no effect in them, or from a moving camera, are named as such rather than passed over", () => {
   // Every frame different everywhere: the camera moved, so nothing is an effect.
   const moving = Array.from({ length: 5 }, (_, index) => scene([0, 0, 0], { background: [index * 50, 255 - index * 50, 100] })[0]);
-  assert.equal(measureEffectTone(moving, "rgba"), undefined);
-  assert.equal(measureEffectTone(scene(DAYLIGHT), "rgba"), undefined);
+  const moved = measureEffectTone(moving, "rgba");
+  assert.deepEqual(moved, { gap: "camera-moved", frames: 5 });
+  assert.ok(moved && isToneGap(moved));
+  assert.match(describeToneGap(moved), /^Colour check: not measured\. The camera moved across these 5 frames/);
+  // An effect the colour of the scene, as when nothing played: nothing changes.
+  const still = measureEffectTone(scene(DAYLIGHT), "rgba");
+  assert.deepEqual(still, { gap: "nothing-showed", frames: 6 });
+  assert.ok(still && isToneGap(still));
+  assert.match(describeToneGap(still), /Across these 6 frames nothing changes over even 0\.3% of the picture: the effect is not on screen here, too small to see from this camera, or the same in every frame/);
+  // A speck under 0.3% of the picture is too small to measure.
+  assert.deepEqual(measureEffectTone(scene([230, 40, 200], { radius: 0.5 }), "rgba"), { gap: "nothing-showed", frames: 6 });
+  assert.ok(!isToneGap(measureEffectTone(scene([230, 40, 200]), "rgba")!));
 });

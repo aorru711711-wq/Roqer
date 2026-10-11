@@ -21,6 +21,13 @@ teleports, orbs, sigils and auras.
     first 15% of its length so there is a gap behind the head;
   - a soft one that bulges in the middle: lifetime about 0.85;
   - a short tendril: lifetime about 0.3.
+
+  A trail is speed × lifetime long, and at impact all of it is still drawn.
+  These lifetimes suit curving missiles: a fireball at 120 studs a second
+  with 0.6-0.85 s ribbons left a straight line from the blast back to the
+  thrower *(seen in a run)*. On a fast, straight shot keep the drawn length
+  a few times the head's, fading the tail to Transparency 1 (27 of 66
+  studied trails fade, 57 taper to nothing), or `Clear()` it at impact.
 - **Shed particles:** droplets or specks at 15-60 a second, with gravity or
   drag, not locked to the part.
 

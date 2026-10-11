@@ -85,12 +85,10 @@ texture, stop and report what is failing instead of escalating.
   - The flash is another layer: one big filled shape for a frame or two. A
     round puff with even, straight spikes that holds its shape reads as a
     comic sticker.
-- **Size within the cell varies.**
-  - Many sheets fill most of the cell at their largest frame.
-  - The hand-drawn set keeps shapes small: half span less than 27% of the
-    cell, and the particle's `Size` does the scaling.
-
-  Either works; what matters is the edge and the motion.
+- **Size within the cell varies:** many sheets fill most of the cell at
+  their largest; the hand-drawn set keeps half under 27% of it and lets the
+  particle's `Size` scale them. Either works; what matters is the edge and
+  the motion.
 - **What made a generic texture look generic:**
   - Roqer's first attempt: soft, grey, rendered smoke with no silhouette, low
     contrast, and frames that barely changed.
@@ -238,11 +236,9 @@ calls `frame(t, size)` once per cell and packs the results into
 `roqer.draw_texture(name, image, size=512)` writes one texture as
 `<name>.png`, from an array or a function of `size`.
 
-Roqer shows you the textures a job draws: up to four one by one, five to
-sixteen as one review sheet, and each flipbook sheet on its own, with any
-transparency over a dark ground. The ground is only for looking: in the game
-a texture is tinted by `Color` and shows over the scene. Draw only the
-textures themselves, with no review copies.
+Roqer shows you the textures a job draws (five to sixteen as one review
+sheet), over a dark ground that is only for looking. Draw only the textures
+themselves, with no review copies.
 
 The building blocks:
 

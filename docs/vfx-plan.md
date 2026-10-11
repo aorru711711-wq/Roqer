@@ -1760,6 +1760,61 @@ the studied files directly, property by property and pixel by pixel.
   - Strokes are not checked from their pixels, only rings; a flipbook's
     cells are not checked for rings.
 
+## The second magic-missile and fireball runs
+
+The user found both "a bit better again". They are the first runs with the
+colour check and the seventh study's guidance.
+
+### What changed in the effects
+
+- **Colour.** The magic run's colour check started at 64% pale, as the
+  first run (74-85%) had been. The agent moved colour onto solid layers
+  until its playtest frames measured 21% pale, 26% vivid and 7% deep (the
+  studied range is 2-21% pale, 35-90% vivid or deep). A wide shot over open
+  sky still measured 43% pale, and the agent told the user so.
+- **Rings.** The shock ring is a bright arc that thins round the rest, as
+  the new example draws. The sigil is still a pentagram of even lines.
+- **The finale** dissolves its crescent dome into dark fragments, as the
+  studied burn-outs do.
+
+### What was still wrong
+
+- **The fireball's smoke read as a pale blue cloud.** Measured on the
+  playtest frame, the smoke over the sky was hue 201° at value 0.74, the sky
+  199° at 0.85: half-transparent grey takes the sky's colour. The studied
+  smoke's opacity (a median Transparency of 0.59 at its most solid) comes
+  from darker scenes. The agent saw it and made the smoke a smaller, darker,
+  warmer haze.
+- **A line from the explosion to the thrower.** The fireball flies at 120
+  studs a second and its ribbons copied the 0.6-0.85 s lifetimes measured
+  on curving missiles, so they were 72-100 studs long. At impact the script
+  only disabled them, so the whole straight path stayed drawn. Of 66
+  studied trails, 57 taper to nothing and 27 fade to transparent; 64 do one
+  or the other.
+- **Two live captures showed nothing.** Five and six frames of the caster
+  standing still, while the server recorded the hit. The colour check then
+  said nothing at all, so the result looked like any capture it had no
+  opinion on. The agent noticed and probed before capturing the fireball;
+  the cause was not found from the export.
+
+### What changed
+
+- **`runtime/effect-tone.ts`:** when no frame can be measured, the colour
+  check says why. Either nothing changes over 0.3% of the picture (not on
+  screen, too small, or the same in every frame), or the frames differ
+  almost everywhere, as a moving camera makes them. `capture_moments`
+  reports it after the moments, with `tone.unmeasured` in its data.
+- **`vfx-explosions.md`:** over a bright sky, smoke is more solid at its
+  peak (Transparency 0.2-0.35), so it shows its own grey.
+- **`vfx-motion.md`:** a trail is speed × lifetime long and still drawn at
+  impact; on a fast, straight shot keep it a few times the head's length,
+  fade its tail, or clear it at impact.
+- Two passages in `vfx-textures.md` and the explosions introduction are
+  shorter, to keep the explosion route's second call within 48,000
+  characters (47,890).
+- **Left:** the smoke opacity and trail length are starting points, not yet
+  seen in Studio.
+
 ## Deferred, and why
 
 - **Runtime EditableMesh/EditableImage effects** (UV scrolling on meshes,

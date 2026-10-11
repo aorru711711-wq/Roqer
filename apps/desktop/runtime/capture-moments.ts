@@ -5,7 +5,7 @@ import type { AnalysisFrame, CropBox } from "./clip-analysis";
 import type { ClipManifest } from "./clip-store";
 import type { StudioCaller } from "./local-operations";
 import type { McpCallOptions, McpToolImage, McpToolOutcome } from "./mcp-types";
-import { describeEffectTone, measureEffectTone, type EffectTone } from "./effect-tone";
+import { describeEffectTone, describeToneGap, isToneGap, measureEffectTone, type EffectTone, type ToneGap } from "./effect-tone";
 import { frameEffectTime, missingClip, nearestFrame, type ChatClips } from "./reference-clip";
 import { frameLabel } from "./sheet-labels";
 
@@ -179,8 +179,8 @@ export type ContactSheet = (
  */
 export type FrameReader = (image: McpToolImage) => Promise<AnalysisFrame | undefined>;
 
-/** The effect's colour across the frames, when every frame decodes and it can be told. */
-async function effectTone(images: readonly McpToolImage[], readFrame: FrameReader | undefined): Promise<EffectTone | undefined> {
+/** The effect's colour across the frames, or why it could not be told, when every frame decodes. */
+async function effectTone(images: readonly McpToolImage[], readFrame: FrameReader | undefined): Promise<EffectTone | ToneGap | undefined> {
   if (readFrame === undefined) return undefined;
   const frames = await Promise.all(images.map((image) => readFrame(image).catch(() => undefined)));
   if (frames.some((frame) => frame === undefined)) return undefined;
@@ -590,7 +590,9 @@ const round3 = (value: number) => Math.round(value * 1000) / 1000;
 async function deliver(captured: Captured): Promise<McpToolOutcome> {
   const { parsed, manifest, references, contactSheet, moments, images, started } = captured;
   // Measured on Studio's own frames, before any tiling or pairing with a clip.
-  const tone = await effectTone(images, captured.readFrame);
+  const reading = await effectTone(images, captured.readFrame);
+  const tone = reading === undefined || isToneGap(reading) ? undefined : reading;
+  const gap = reading !== undefined && isToneGap(reading) ? reading : undefined;
   // A sheet of up to eight frames costs the model about what two frames do, so the frames go as one unless asked otherwise.
   let delivered = images;
   let tiled = false;
@@ -638,6 +640,7 @@ async function deliver(captured: Captured): Promise<McpToolOutcome> {
     ...(pairingNote === undefined ? [] : [pairingNote]),
     ...lines,
     ...(tone === undefined ? [] : describeEffectTone(tone)),
+    ...(gap === undefined ? [] : [describeToneGap(gap)]),
     ...captured.footer,
   ].join("\n");
   if (images.length === 0) return failure(text, started);
@@ -648,6 +651,7 @@ async function deliver(captured: Captured): Promise<McpToolOutcome> {
       ...captured.data,
       ...(paired === undefined ? {} : { comparedWith: manifest!.id }),
       ...(tone === undefined ? {} : { tone: { pale: round3(tone.pale), vivid: round3(tone.vivid), deep: round3(tone.deep), blown: round3(tone.blown) } }),
+      ...(gap === undefined ? {} : { tone: { unmeasured: gap.gap } }),
     },
     text,
     images: delivered,

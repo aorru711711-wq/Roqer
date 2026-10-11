@@ -15,6 +15,11 @@
  * its channels moved more than `CHANGE_THRESHOLD` from it. A frame that
  * changed almost everywhere has a moving camera and is left out. Pure: frames
  * in, numbers and lines out, so it is tested without Electron.
+ *
+ * When no frame can be measured it says why. A fireball run's live captures
+ * came back twice as frames of the caster standing still, the effect nowhere
+ * on screen, and the check said nothing at all, so a blank capture looked the
+ * same as one it had no opinion on.
  */
 import { CHANGE_THRESHOLD, medianBackground, type AnalysisFrame, type PixelOrder } from "./clip-analysis";
 
@@ -39,6 +44,13 @@ export type EffectTone = Readonly<{
   blown: number;
 }>;
 
+/**
+ * Why frames that decoded could not be measured: nothing changed from frame to
+ * frame over enough of the picture to be an effect, or the frames changed
+ * almost everywhere, as a moving camera makes them.
+ */
+export type ToneGap = Readonly<{ gap: "nothing-showed" | "camera-moved"; frames: number }>;
+
 /** Pale share above which an effect reads washed out: the studied videos reach 21%, this run 54-85%. */
 export const WASHED_OUT = 0.4;
 /** Blown-out share above which white is a blob rather than a highlight: the studied videos reach 9%. */
@@ -51,11 +63,11 @@ function median(values: readonly number[]): number {
 }
 
 /**
- * The effect's colour across a capture's frames, or undefined when it cannot
- * be told: too few frames for a background, frames of different sizes, or no
- * frame where the effect shows on a still camera.
+ * The effect's colour across a capture's frames; why it cannot be told when no
+ * frame shows an effect on a still camera; or undefined when the frames cannot
+ * say either: too few for a background, or of different sizes.
  */
-export function measureEffectTone(frames: readonly AnalysisFrame[], order: PixelOrder = "bgra"): EffectTone | undefined {
+export function measureEffectTone(frames: readonly AnalysisFrame[], order: PixelOrder = "bgra"): EffectTone | ToneGap | undefined {
   if (frames.length < MIN_FRAMES) return undefined;
   const { width, height } = frames[0];
   if (width < 8 || height < 8 || frames.some((frame) => frame.width !== width || frame.height !== height || frame.pixels.length < width * height * 4)) return undefined;
@@ -63,6 +75,7 @@ export function measureEffectTone(frames: readonly AnalysisFrame[], order: Pixel
   const [ri, gi, bi] = order === "bgra" ? [2, 1, 0] : [0, 1, 2];
   const count = width * height;
   const measured: { area: number; pale: number; vivid: number; deep: number; blown: number }[] = [];
+  let moved = 0;
   for (const frame of frames) {
     let effect = 0, pale = 0, vivid = 0, deep = 0, blown = 0;
     for (let pixel = 0; pixel < count; pixel++) {
@@ -79,10 +92,11 @@ export function measureEffectTone(frames: readonly AnalysisFrame[], order: Pixel
       if (low > 0.9) blown++;
     }
     const area = effect / count;
+    if (area > WHOLE_FRAME) moved++;
     if (area < MIN_AREA || area > WHOLE_FRAME) continue;
     measured.push({ area, pale: pale / effect, vivid: vivid / effect, deep: deep / effect, blown: blown / effect });
   }
-  if (measured.length === 0) return undefined;
+  if (measured.length === 0) return { gap: moved > 0 ? "camera-moved" : "nothing-showed", frames: frames.length };
   // The frames where the effect is largest carry its look; a fading tail would only dilute it.
   const busiest = [...measured].sort((a, b) => b.area - a.area).slice(0, Math.max(Math.min(3, measured.length), Math.ceil(measured.length / 3)));
   return {
@@ -95,6 +109,19 @@ export function measureEffectTone(frames: readonly AnalysisFrame[], order: Pixel
 }
 
 const percent = (share: number) => `${Math.round(share * 100)}%`;
+
+/** Whether a reading is a measurement rather than a gap. */
+export function isToneGap(reading: EffectTone | ToneGap): reading is ToneGap {
+  return "gap" in reading;
+}
+
+/** Why the colour check measured nothing, as a line for the capture's result. */
+export function describeToneGap(gap: ToneGap): string {
+  if (gap.gap === "camera-moved") {
+    return `Colour check: not measured. The camera moved across these ${gap.frames} frames (they differ almost everywhere), so the effect cannot be told from the scene. Hold the camera still across the moments to have it measured.`;
+  }
+  return `Colour check: not measured. Across these ${gap.frames} frames nothing changes over even ${(MIN_AREA * 100).toFixed(1)}% of the picture: the effect is not on screen here, too small to see from this camera, or the same in every frame (the check measures what changes). If it should be moving on screen, find out why before judging these frames: whether the code started it, and whether the camera faces it.`;
+}
 
 /** The colour check as lines for the capture's result: the shares, then what to change when it is washed or blown out. */
 export function describeEffectTone(tone: EffectTone): string[] {
