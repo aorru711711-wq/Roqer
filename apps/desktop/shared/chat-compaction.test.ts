@@ -26,6 +26,68 @@ test("the record says what was asked and what each reply changed", () => {
   ].join("\n"));
 });
 
+test("a note is labeled as a note, and a failed run keeps why it stopped, what was unfinished, and what failed", () => {
+  const long = `detail ${"x".repeat(400)}`;
+  const summary = compactChatSummary("", [
+    { role: "user", text: "Leave the shop alone", note: true },
+    {
+      role: "assistant",
+      text: "Stopping here.",
+      run: {
+        outcome: "failed",
+        changes: [],
+        unfinished: ["[active] Wire the buy button", long],
+        unverified: [],
+        decisions: [],
+        stoppedBecause: "You've hit your session limit",
+        failedCalls: ["build_instances: CFrame expected, got table."],
+      },
+    },
+  ]);
+
+  assert.match(summary, /^- User note: Leave the shop alone/m);
+  assert.equal(summary.includes("User asked: Leave the shop alone"), false);
+  assert.match(summary, /Stopped because: You've hit your session limit/);
+  assert.match(summary, /Unfinished: \[active\] Wire the buy button/);
+  assert.match(summary, /Failed call: build_instances: CFrame expected, got table\./);
+  const clipped = summary.split("\n").find((line) => line.startsWith("  Unfinished: detail "));
+  assert.ok(clipped !== undefined && clipped.endsWith("…") && !clipped.includes("x".repeat(400)));
+  assert.ok(summary.length <= MAX_COMPACT_SUMMARY_CHARS);
+});
+
+test("a failed run's lines survive when older lines are dropped, still inside the bound", () => {
+  const older: ConversationMessage[] = Array.from({ length: 200 }, (_, index) => ({
+    role: "user",
+    text: `request number ${index} ${"x".repeat(200)}`,
+  }));
+  const summary = compactChatSummary("", [
+    ...older,
+    { role: "user", text: "Leave the shop alone", note: true },
+    {
+      role: "assistant",
+      text: "Stopping here.",
+      run: {
+        outcome: "failed",
+        changes: [],
+        unfinished: ["[active] Wire the buy button"],
+        unverified: [],
+        decisions: [],
+        stoppedBecause: `session limit ${"y".repeat(400)}`,
+        failedCalls: ["build_instances: CFrame expected, got table."],
+      },
+    },
+  ]);
+
+  assert.ok(summary.length <= MAX_COMPACT_SUMMARY_CHARS);
+  assert.ok(summary.startsWith(COMPACT_DROPPED_NOTICE));
+  assert.ok(!summary.includes("request number 0 "));
+  assert.match(summary, /User note: Leave the shop alone/);
+  assert.match(summary, /Unfinished: \[active\] Wire the buy button/);
+  assert.match(summary, /Failed call: build_instances: CFrame expected, got table\./);
+  const stopped = summary.split("\n").find((line) => line.startsWith("  Stopped because:"));
+  assert.ok(stopped !== undefined && stopped.endsWith("…") && !stopped.includes("y".repeat(400)));
+});
+
 test("a long run lists its first changes and counts the rest", () => {
   const changes = Array.from({ length: 8 }, (_, index) => `script Part${index} at revision 1`);
   const summary = compactChatSummary("", [{ role: "assistant", text: "Done.", run: digest(changes) }]);

@@ -42,17 +42,26 @@ function clip(text: string, max: number): string {
   return flat.length <= max ? flat : `${flat.slice(0, max - 1)}…`;
 }
 
+function pushClipped(lines: string[], label: string, entries: readonly string[], moreLabel: string): void {
+  for (const entry of entries.slice(0, CHANGES_PER_RUN)) {
+    lines.push(`  ${label}: ${clip(entry, MESSAGE_CLIP_CHARS)}`);
+  }
+  const more = entries.length - CHANGES_PER_RUN;
+  if (more > 0) lines.push(`  …and ${more} more ${moreLabel}`);
+}
+
 function linesFor(message: ConversationMessage): string[] {
-  const speaker = message.role === "user" ? "User asked" : "Assistant replied";
+  const speaker = message.note === true
+    ? "User note"
+    : message.role === "user" ? "User asked" : "Assistant replied";
   const lines = [`- ${speaker}: ${clip(message.text, MESSAGE_CLIP_CHARS)}`];
   const run = message.run;
   if (run !== undefined) {
     lines.push(`  Run outcome: ${clip(run.outcome, MESSAGE_CLIP_CHARS)}`);
-    for (const change of run.changes.slice(0, CHANGES_PER_RUN)) {
-      lines.push(`  Changed: ${clip(change, MESSAGE_CLIP_CHARS)}`);
-    }
-    const more = run.changes.length - CHANGES_PER_RUN;
-    if (more > 0) lines.push(`  …and ${more} more changes`);
+    if (run.stoppedBecause !== undefined) lines.push(`  Stopped because: ${clip(run.stoppedBecause, MESSAGE_CLIP_CHARS)}`);
+    pushClipped(lines, "Changed", run.changes, "changes");
+    pushClipped(lines, "Unfinished", run.unfinished, "unfinished");
+    pushClipped(lines, "Failed call", run.failedCalls ?? [], "failed calls");
   }
   return lines;
 }

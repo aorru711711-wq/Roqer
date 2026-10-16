@@ -34,6 +34,8 @@ Done when: `limits-cache.test.ts` shows that `replace` during an in-flight fetch
 
 Done when: `chat-compaction.test.ts` shows a note labeled as a note, and a failed run's stop reason, one unfinished task, and one failed call survive as clipped lines. The summary stays within `MAX_COMPACT_SUMMARY_CHARS`, including when older lines are dropped.
 
+**Status:** done
+
 ## 5. Cap external MCP text the way Studio results are capped
 
 `parseCallResult` in `apps/desktop/runtime/external-mcp-client.ts` keeps 200,000 characters. A Studio result is cut at 24,000 (`MAX_MODEL_RESULT_CHARS` in `studio-tools.ts`). One oversized third-party result is charged to the user's subscription on every later turn of that chat.
