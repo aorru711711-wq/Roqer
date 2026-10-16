@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { fileURLToPath } from "node:url";
 import test from "node:test";
 import { blenderToolDefinition } from "./blender-tool";
+import { externalMcpToolDefinition } from "./external-mcp-tool";
 import { iconToolDefinition } from "./icon-tool";
 import { questionToolDefinition } from "./question-tool";
 import { openSkillLibrary } from "./skill-library";
@@ -1428,6 +1429,7 @@ test("every tool Roqer grants fits what Claude Code passes on", async () => {
   const tools = [
     { name: "roblox_studio", description: studioToolDescription() },
     skillToolDefinition(library), iconToolDefinition(), taskToolDefinition(), questionToolDefinition(), blenderToolDefinition(),
+    externalMcpToolDefinition(),
   ];
   for (const tool of tools) {
     assert.ok(tool.description.length <= MAX_TOOL_DESCRIPTION_CHARS, `${tool.name}: ${tool.description.length} characters`);

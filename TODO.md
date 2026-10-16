@@ -90,6 +90,8 @@ Claude Code keeps only the first 2,048 characters of a tool description. `studio
 
 Done when: that test includes `externalMcpToolDefinition()`, and its description length is at most `MAX_TOOL_DESCRIPTION_CHARS`.
 
+**Status:** done
+
 ## 12. Tell a from-source build to use the lockfile
 
 CI and `CONTRIBUTING.md` install with `npm ci`. The README getting-started block and `docs/building-from-source.md` say `npm install`, which can resolve a different tree than the committed lockfile.
