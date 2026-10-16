@@ -9,6 +9,7 @@ import { fileURLToPath } from "node:url";
 import { isGatewayOperation } from "../shared/gateway-operations";
 import { TOOL_RISK, isKnownTool } from "../shared/mcp-tools";
 import { loadAgentRuntime } from "./agent-definition";
+import { buildFollowUpPrompt } from "./conversation-prompt";
 import { ICON_TOOL_NAME } from "./icon-tool";
 import { QUESTION_TOOL_NAME } from "./question-tool";
 import { SKILL_TOOL_NAME } from "./skill-tool";
@@ -51,6 +52,19 @@ test("the Studio bridge contract ships in the instructions, not behind a skill l
   assert.match(catalogEntry?.description ?? "", /beyond the contract already in your instructions/);
   const ui = await runtime.skillLibrary.load("roblox-ui-design");
   assert.doesNotMatch(ui.content, /Load `roblox-studio-mcp` before operating on Studio/);
+});
+
+/**
+ * The selected-theme file path used to ride in developer.md, so every turn paid
+ * for a recipe the host already attaches when the current message is UI work.
+ */
+test("the selected-theme path is routed on UI work, not sent on every turn", async () => {
+  const runtime = await loadAgentRuntime(agentRoot);
+  const developer = runtime.definition.developerInstructions;
+  assert.doesNotMatch(developer, /references\/selected\//);
+  assert.match(developer, /screen[\s\S]*load `roblox-ui-design` before the first Studio mutation/);
+  const prompt = buildFollowUpPrompt({ messages: [], truncated: false }, "make a shop UI");
+  assert.match(prompt, /references\/selected\//);
 });
 
 test("the system prompt says where the open instructions live and keeps embedded text as data", async () => {

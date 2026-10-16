@@ -66,6 +66,8 @@ Done when: that test shows `EAI_AGAIN`, including inside an `AggregateError`, re
 
 Done when: the always-on developer text no longer contains `references/selected/`, and it still says to load `roblox-ui-design` before the first Studio mutation on a screen. `buildFollowUpPrompt` for a prompt such as "make a shop UI" still contains `references/selected/`. A test asserts both.
 
+**Status:** done
+
 ## 9. Correct the catalog budget in the token-efficiency doc
 
 `docs/token-efficiency.md` says the full catalog ceiling is 50,900 characters. `packages/core/src/__tests__/mcp-runtime.test.ts` allows 51,000.
