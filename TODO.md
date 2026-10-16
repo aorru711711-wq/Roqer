@@ -18,6 +18,8 @@ Done when: the test normalizes newlines before those checks, `npx jest src/__tes
 
 Done when: a result with empty text and `structuredContent: { rows: 3 }` includes a JSON rendering of that object in `text`; a result that already has text does not repeat `structuredContent`; the rendering is cut by the same character cap as other external-MCP text; `external-mcp.test.ts` covers both cases.
 
+**Status:** done
+
 ## 3. Do not let a stale usage read overwrite a fresher push
 
 `LimitsCache.refresh` in `apps/desktop/runtime/limits-cache.ts` writes whatever the fetch returns. `CodexLimitsTracker` also calls `replace` when Codex pushes `account/rateLimits/updated`. A read that started first can finish second and paint the older snapshot over the push. Nothing tests this class.

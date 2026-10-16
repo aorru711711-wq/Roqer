@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import { ExternalMcpRunSession, testExternalMcpServer, type ResolvedMcpServer } from "./external-mcp";
-import type { ExternalMcpConnection, ExternalMcpTarget, ExternalMcpTool } from "./external-mcp-client";
+import { MAX_RESULT_TEXT_CHARACTERS, type ExternalMcpConnection, type ExternalMcpTarget, type ExternalMcpTool } from "./external-mcp-client";
 import { externalMcpToolDefinition, parseExternalMcpToolInput } from "./external-mcp-tool";
 import { withLocalOperations } from "./local-operations";
 import type { McpToolCaller, McpToolOutcome } from "./mcp-types";
@@ -234,6 +234,60 @@ test("a call returns the server's result marked as third-party data, and a tool 
   assert.equal(failed.ok, false);
   assert.equal(failed.errorCode, "tool_error");
   await session.close();
+});
+
+test("structured content with no text is shown to the model, and text that is already there is not repeated", async () => {
+  const replies: Array<{ text: string; structured?: unknown }> = [
+    { text: "", structured: { rows: 3 } },
+    { text: "plain answer", structured: { rows: 3 } },
+    { text: "", structured: { blob: "x".repeat(MAX_RESULT_TEXT_CHARACTERS) } },
+  ];
+  let next = 0;
+  const fake: FakeServer = { tools: TOOLS, calls: [], closed: 0, started: [] };
+  const session = new ExternalMcpRunSession({
+    source: { enabled: async () => [{ server: GITHUB, secrets: {} }] },
+    clientVersion: "test",
+    baseEnv: {},
+    connect: async (target) => {
+      const connection = await fakeConnect(fake)(target);
+      return {
+        ...connection,
+        get closed() { return connection.closed; },
+        toolsVersion: 0,
+        callTool: async () => {
+          const reply = replies[next++]!;
+          return {
+            isError: false,
+            text: reply.text,
+            images: [],
+            omitted: [],
+            ...(reply.structured === undefined ? {} : { structured: reply.structured }),
+          };
+        },
+      };
+    },
+  });
+  try {
+    const onlyStructured = await session.call({ server: "github", tool: "create_issue", arguments: {} }, {});
+    assert.match(onlyStructured.text, /\{"rows":3\}/);
+    assert.equal(onlyStructured.text.includes("(no text)"), false);
+    assert.deepEqual(onlyStructured.data, { rows: 3 });
+
+    const withText = await session.call({ server: "github", tool: "create_issue", arguments: {} }, {});
+    assert.match(withText.text, /plain answer/);
+    assert.equal(withText.text.includes('{"rows":3}'), false);
+    assert.equal(withText.data, undefined);
+
+    const rendered = JSON.stringify({ blob: "x".repeat(MAX_RESULT_TEXT_CHARACTERS) });
+    assert.ok(rendered.length > MAX_RESULT_TEXT_CHARACTERS);
+    const capped = await session.call({ server: "github", tool: "create_issue", arguments: {} }, {});
+    const cut = `${rendered.slice(0, MAX_RESULT_TEXT_CHARACTERS - 1)}…`;
+    assert.equal(capped.text.includes(cut), true);
+    assert.equal(capped.text.includes(rendered), false);
+    assert.match(capped.text, /the end of a long text/);
+  } finally {
+    await session.close();
+  }
 });
 
 test("a server turned off mid-run takes no more calls, and a changed one is reconnected", async () => {

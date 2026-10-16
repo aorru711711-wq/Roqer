@@ -30,7 +30,8 @@ const MAX_STDERR_CHARACTERS = 4_000;
 const MAX_TOOL_DESCRIPTION_CHARACTERS = 2_000;
 const MAX_INPUT_SCHEMA_CHARACTERS = 16_000;
 const MAX_LIST_PAGES = 10;
-const MAX_RESULT_TEXT_CHARACTERS = 200_000;
+/** The most text one external-MCP tool result keeps. Longer text is cut, and the cut is named. */
+export const MAX_RESULT_TEXT_CHARACTERS = 200_000;
 const MAX_RESULT_IMAGES = 4;
 const DEFAULT_REQUEST_TIMEOUT_MS = 30_000;
 const CLOSE_GRACE_MS = 2_000;
