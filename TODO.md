@@ -58,6 +58,8 @@ Done when: `mcp-download.test.ts` uses a fake `fetch` and shows all of the follo
 
 Done when: that test shows `EAI_AGAIN`, including inside an `AggregateError`, rejects with `TransientTurnError`, and `ECONNREFUSED`, `ENOTFOUND`, and `ERR_INVALID_URL` stay non-transient.
 
+**Status:** done
+
 ## 8. Stop sending the UI-design recipe on every turn
 
 `apps/desktop/agent/developer.md` spells out the selected-theme path (`references/selected/<theme>/<layout>.md`) in the instructions for every run. `routedCurrentPrompt` in `conversation-prompt.ts` already adds that route when the current message looks like UI work.

@@ -366,10 +366,12 @@ export function usableCallId(value: string, fallback: string): string {
 
 /**
  * Connection failures that describe the address rather than the moment: no
- * server listening there, or no such host. Another attempt a few seconds later
- * would find the same, so these are reported at once.
+ * server listening there, no such host, or a URL that is not a URL. Another
+ * attempt a few seconds later would find the same, so these are reported at
+ * once. `EAI_AGAIN` is not among them: the resolver asked the caller to try
+ * again, so that failure is transient.
  */
-const PERMANENT_CONNECTION_CODES = new Set(["ECONNREFUSED", "ENOTFOUND", "EAI_AGAIN", "ERR_INVALID_URL"]);
+const PERMANENT_CONNECTION_CODES = new Set(["ECONNREFUSED", "ENOTFOUND", "ERR_INVALID_URL"]);
 
 /**
  * The system error code under a failed fetch: undici wraps it as the `cause`

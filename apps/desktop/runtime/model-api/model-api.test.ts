@@ -733,6 +733,28 @@ test("a connection refused outright is reported at once, and a reset one is tran
       .streamTurn(REQUEST, new AbortController().signal)),
     (error: Error) => !(error instanceof TransientTurnError),
   );
+  await assert.rejects(
+    () => collect(turns("ENOTFOUND").streamTurn(REQUEST, new AbortController().signal)),
+    (error: Error) => !(error instanceof TransientTurnError),
+  );
+  await assert.rejects(
+    () => collect(turns("ERR_INVALID_URL").streamTurn(REQUEST, new AbortController().signal)),
+    (error: Error) => !(error instanceof TransientTurnError),
+  );
+  await assert.rejects(
+    () => collect(turns("EAI_AGAIN").streamTurn(REQUEST, new AbortController().signal)),
+    (error: Error) => error instanceof TransientTurnError,
+  );
+  const againBoth = (async () => {
+    throw new TypeError("fetch failed", {
+      cause: new AggregateError([Object.assign(new Error("::1"), { code: "EAI_AGAIN" }), Object.assign(new Error("127.0.0.1"), { code: "EAI_AGAIN" })]),
+    });
+  }) as typeof globalThis.fetch;
+  await assert.rejects(
+    () => collect(new OpenAiChatTurns({ baseUrl: "http://localhost:1234/v1", apiKey: null, label: "Local", reasoning: false, fetch: againBoth })
+      .streamTurn(REQUEST, new AbortController().signal)),
+    (error: Error) => error instanceof TransientTurnError,
+  );
 });
 
 test("reasoning an OpenAI-compatible server streams is reported as progress and never as text", async () => {
