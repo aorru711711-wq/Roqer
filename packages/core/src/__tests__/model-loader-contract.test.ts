@@ -18,7 +18,8 @@ function repositoryRoot(): string {
   return fs.existsSync(path.join(cwd, 'studio-plugin')) ? cwd : path.resolve(cwd, '../..');
 }
 
-const HANDLERS = fs.readFileSync(path.join(repositoryRoot(), 'studio-plugin/src/modules/handlers/AnimationHandlers.ts'), 'utf8');
+// autocrlf stores the plugin source as CRLF; the contract checks match LF.
+const HANDLERS = fs.readFileSync(path.join(repositoryRoot(), 'studio-plugin/src/modules/handlers/AnimationHandlers.ts'), 'utf8').replace(/\r\n/g, '\n');
 
 function loaderSource(): string {
   const match = /const MODEL_LOADER_SOURCE = `([\s\S]*?)`;/.exec(HANDLERS);

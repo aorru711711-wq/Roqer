@@ -10,6 +10,8 @@ Baseline on this Windows checkout, at upstream `4e29b9b`: desktop tests, typeche
 
 Done when: the test normalizes newlines before those checks, `npx jest src/__tests__/model-loader-contract.test.ts --config packages/core/jest.config.js` passes in this CRLF tree, and changing either constant in only one of the two files still fails the test.
 
+**Status:** done
+
 ## 2. Give the model a structured-only MCP result
 
 `ExternalMcpSession.call` in `apps/desktop/runtime/external-mcp.ts` leaves the text body empty when a server returns `structuredContent` and no text, and parks that object on `data`. Every planner sends `result.text` only (`agent-loop.ts`, `chatgpt-planner.ts`), so the model sees a header and nothing else. A download link that exists only in the structured payload is then invisible, while the download note still says a file can be saved.
