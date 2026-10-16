@@ -3,7 +3,7 @@
 Node.js 20 or newer is required.
 
 ```bash
-npm install
+npm ci
 npm run build:all
 ```
 

@@ -97,3 +97,5 @@ Done when: that test includes `externalMcpToolDefinition()`, and its description
 CI and `CONTRIBUTING.md` install with `npm ci`. The README getting-started block and `docs/building-from-source.md` say `npm install`, which can resolve a different tree than the committed lockfile.
 
 Done when: both of those command blocks say `npm ci`.
+
+**Status:** done

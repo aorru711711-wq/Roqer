@@ -59,7 +59,7 @@ You need:
 ```bash
 git clone https://github.com/S4US/Roqer.git
 cd Roqer
-npm install
+npm ci
 npm run build:all
 npm run start:desktop
 ```
