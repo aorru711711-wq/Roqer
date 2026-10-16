@@ -82,6 +82,8 @@ Done when: the doc states 51,000 and still matches the test's other figures: 52 
 
 Done when: a test with a fake env shows a quoted PATH entry is unquoted, duplicate prefixes collapse, `%APPDATA%\npm` is included when it is absent from PATH, and `@anthropic-ai/claude-code` is joined as nested `node_modules` folders.
 
+**Status:** done
+
 ## 11. Guard the external MCP tool description length
 
 Claude Code keeps only the first 2,048 characters of a tool description. `studio-tools.test.ts` checks every tool Roqer grants except `external_mcp`.
