@@ -50,6 +50,8 @@ Done when: model-facing external-MCP text is at most 24,000 characters, the omis
 
 Done when: `mcp-download.test.ts` uses a fake `fetch` and shows all of the following. The call throws `McpDownloadError` and writes no file for a non-https URL, a URL with userinfo, a redirect off https, a loopback or link-local or private host (before fetch and after redirect), a malformed percent-encoding, a declared or streamed body over the byte cap, and an empty body. A normal https file is saved under a sanitized name with no path separators. `pruneMcpDownloads` removes run directories older than 7 days and leaves a newer one. `linksIn` drops trailing punctuation.
 
+**Status:** done
+
 ## 7. Retry a temporary DNS failure
 
 `PERMANENT_CONNECTION_CODES` in `apps/desktop/runtime/model-api/http.ts` includes `EAI_AGAIN`. That code means the resolver asked the caller to try again. `fetchWithin` then throws a plain `Error`, so the turn stops instead of using `TransientTurnError`. `model-api.test.ts` locks this behavior for `ECONNREFUSED` only.
