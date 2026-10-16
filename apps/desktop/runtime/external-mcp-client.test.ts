@@ -286,8 +286,10 @@ test("a result is bounded, and what is not passed on is named", () => {
     ],
     structuredContent: { rows: 3 },
   });
-  assert.ok(result.text.length <= 200_000);
-  assert.deepEqual(result.omitted, ["an image", "the end of a long text"]);
+  const passed = `${"x".repeat(250_000)}\n\n[resource: file:///notes.md (notes)]`;
+  const leftOut = passed.length - (24_000 - 1);
+  assert.equal(result.text.length, 24_000);
+  assert.deepEqual(result.omitted, ["an image", `${leftOut} characters left out`]);
   assert.deepEqual(result.structured, { rows: 3 });
   assert.throws(() => parseCallResult("nope"), ExternalMcpError);
 });

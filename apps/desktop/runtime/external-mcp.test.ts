@@ -284,7 +284,7 @@ test("structured content with no text is shown to the model, and text that is al
     const cut = `${rendered.slice(0, MAX_RESULT_TEXT_CHARACTERS - 1)}…`;
     assert.equal(capped.text.includes(cut), true);
     assert.equal(capped.text.includes(rendered), false);
-    assert.match(capped.text, /the end of a long text/);
+    assert.match(capped.text, new RegExp(`${rendered.length - (MAX_RESULT_TEXT_CHARACTERS - 1)} characters left out`));
   } finally {
     await session.close();
   }

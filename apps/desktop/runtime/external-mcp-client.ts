@@ -30,8 +30,8 @@ const MAX_STDERR_CHARACTERS = 4_000;
 const MAX_TOOL_DESCRIPTION_CHARACTERS = 2_000;
 const MAX_INPUT_SCHEMA_CHARACTERS = 16_000;
 const MAX_LIST_PAGES = 10;
-/** The most text one external-MCP tool result keeps. Longer text is cut, and the cut is named. */
-export const MAX_RESULT_TEXT_CHARACTERS = 200_000;
+/** The most text one external-MCP result passes on, the same budget as a Studio result. */
+export const MAX_RESULT_TEXT_CHARACTERS = 24_000;
 const MAX_RESULT_IMAGES = 4;
 const DEFAULT_REQUEST_TIMEOUT_MS = 30_000;
 const CLOSE_GRACE_MS = 2_000;
@@ -117,6 +117,13 @@ const isRecord = (value: unknown): value is Record<string, unknown> =>
   typeof value === "object" && value !== null && !Array.isArray(value);
 
 const truncate = (value: string, limit: number): string => value.length <= limit ? value : `${value.slice(0, limit - 1)}…`;
+
+/** Cut model-facing text to the result budget. `omitted` names how many characters were left out. */
+export function boundModelText(text: string): { text: string; omitted?: string } {
+  if (text.length <= MAX_RESULT_TEXT_CHARACTERS) return { text };
+  const leftOut = text.length - (MAX_RESULT_TEXT_CHARACTERS - 1);
+  return { text: truncate(text, MAX_RESULT_TEXT_CHARACTERS), omitted: `${leftOut} characters left out` };
+}
 
 // -- JSON-RPC ---------------------------------------------------------------
 
@@ -694,11 +701,9 @@ export function parseCallResult(value: unknown): ExternalMcpCallResult {
       omitted.push("content of an unknown kind");
     }
   }
-  let text = texts.join("\n\n");
-  if (text.length > MAX_RESULT_TEXT_CHARACTERS) {
-    text = truncate(text, MAX_RESULT_TEXT_CHARACTERS);
-    omitted.push("the end of a long text");
-  }
+  const bounded = boundModelText(texts.join("\n\n"));
+  const text = bounded.text;
+  if (bounded.omitted !== undefined) omitted.push(bounded.omitted);
   const structured = value.structuredContent;
   return {
     isError: value.isError === true,

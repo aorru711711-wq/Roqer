@@ -10,7 +10,7 @@ import type { ToolRisk } from "../shared/policy";
 import {
   connectExternalMcp,
   ExternalMcpError,
-  MAX_RESULT_TEXT_CHARACTERS,
+  boundModelText,
   type ExternalMcpConnection,
   type ExternalMcpConnectOptions,
   type ExternalMcpTarget,
@@ -349,11 +349,10 @@ export class ExternalMcpRunSession {
         const rendered = result.structured === undefined ? undefined : structuredText(result.structured);
         if (rendered === undefined) {
           body = "(no text)";
-        } else if (rendered.length > MAX_RESULT_TEXT_CHARACTERS) {
-          body = truncate(rendered, MAX_RESULT_TEXT_CHARACTERS);
-          omitted.push("the end of a long text");
         } else {
-          body = rendered;
+          const bounded = boundModelText(rendered);
+          body = bounded.text;
+          if (bounded.omitted !== undefined) omitted.push(bounded.omitted);
         }
       }
       const notes = omitted.length === 0

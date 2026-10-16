@@ -42,6 +42,8 @@ Done when: `chat-compaction.test.ts` shows a note labeled as a note, and a faile
 
 Done when: model-facing external-MCP text is at most 24,000 characters, the omission names how many characters were left out, and the existing bound test in `external-mcp-client.test.ts` asserts 24,000.
 
+**Status:** done
+
 ## 6. Test and tighten MCP file downloads
 
 `apps/desktop/runtime/mcp-download.ts` has no tests. `downloadName` calls `decodeURIComponent`, which throws `URIError` on a bad percent-encoding instead of `McpDownloadError`. Any https host is saved, including loopback, link-local, and private addresses a third-party server can offer. A bad `response.url` throws `TypeError` from `new URL` rather than `McpDownloadError`.
