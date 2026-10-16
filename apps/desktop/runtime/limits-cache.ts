@@ -8,7 +8,9 @@ export type LimitsReport = Readonly<{ windows: readonly UsageWindow[]; limitReac
  *
  * A failed or unreadable read keeps the previous report, which still carries
  * the time it was heard, so the interface can say how old it is; with no
- * report at all it is `none`. Nothing is estimated between reads.
+ * report at all it is `none`. A report pushed while a read is in flight is
+ * newer than that read, so the read does not paint over it. Nothing is
+ * estimated between reads.
  */
 export class LimitsCache<Report extends LimitsReport> {
   private readonly fetch: () => Promise<Report | null>;
@@ -41,8 +43,9 @@ export class LimitsCache<Report extends LimitsReport> {
     return this.report;
   }
 
-  /** Take a report the provider pushed, heard now. */
+  /** Take a report the provider pushed, heard now. It outranks a read already in flight. */
   replace(report: Report): void {
+    this.generation += 1;
     this.report = { ...report, observedAt: this.now() };
   }
 
@@ -64,6 +67,7 @@ export class LimitsCache<Report extends LimitsReport> {
       return;
     }
     // A read that began before `forget` belongs to the account that was forgotten.
+    // One that began before a pushed report is older than that push.
     if (generation !== this.generation || report === null) return;
     this.replace(report);
   }

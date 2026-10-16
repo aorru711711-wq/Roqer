@@ -26,6 +26,8 @@ Done when: a result with empty text and `structuredContent: { rows: 3 }` include
 
 Done when: `limits-cache.test.ts` shows that `replace` during an in-flight fetch is still the value after that fetch resolves, a thrown fetch keeps the previous report, and a second `read` inside the interval does not call fetch.
 
+**Status:** done
+
 ## 4. Keep unfinished work in a compacted chat
 
 `linesFor` in `apps/desktop/shared/chat-compaction.ts` keeps a clipped message, the outcome word, and the first five changes. It drops `stoppedBecause`, `unfinished`, and `failedCalls`. A note (`message.note === true`) is labeled "User asked". After Compact chat, the next model is not told what failed.
