@@ -74,6 +74,8 @@ Done when: the always-on developer text no longer contains `references/selected/
 
 Done when: the doc states 51,000 and still matches the test's other figures: 52 tools, 25 inspector tools, descriptions at most 120 characters, inspector catalog at most 20,000 characters.
 
+**Status:** done
+
 ## 10. Test Windows global-package lookup
 
 `windowsNpmPackageRoots` in `apps/desktop/runtime/windows-npm.ts` is how Codex and Claude Code are found under a global npm prefix. It has no test.
